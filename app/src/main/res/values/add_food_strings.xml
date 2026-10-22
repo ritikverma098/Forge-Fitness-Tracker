@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add_food_title">Add food</string>
+    <string name="add_food_destination">%1$s · %2$s</string>
+    <string name="add_food_search">Search foods</string>
+    <string name="add_food_clear_search">Clear search</string>
+    <string name="add_food_all">All foods</string>
+    <string name="add_food_recent">Recent</string>
+    <string name="add_food_frequent">Frequent</string>
+    <string name="add_food_favorites">Favorites</string>
+    <string name="add_food_indian">Indian</string>
+    <string name="add_food_branded">Branded</string>
+    <string name="add_food_today">Today</string>
+    <string name="add_food_choose_day">Choose a day</string>
+    <string name="add_food_date_confirm">Use this day</string>
+    <string name="add_food_breakfast">Breakfast</string>
+    <string name="add_food_lunch">Lunch</string>
+    <string name="add_food_dinner">Dinner</string>
+    <string name="add_food_snack">Snack</string>
+    <string name="add_food_loading">Finding foods…</string>
+    <string name="add_food_empty_title">No foods found</string>
+    <string name="add_food_empty_description">Try another name or filter. Reference foods are available after installing a catalog from Nutrition.</string>
+    <string name="add_food_error_title">Foods could not be loaded</string>
+    <string name="add_food_error_description">Your saved foods are safe. Try loading the list again.</string>
+    <string name="add_food_retry">Try again</string>
+    <string name="add_food_load_more">Load more foods</string>
+    <string name="add_food_refine_search">Refine your search to view more matches.</string>
+    <string name="add_food_create">Create custom food</string>
+    <string name="food_log_action">Log food</string>
+    <string name="food_logged">Food logged.</string>
+</resources>

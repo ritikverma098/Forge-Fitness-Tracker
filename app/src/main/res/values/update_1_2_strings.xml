@@ -1,0 +1,19 @@
+<resources>
+    <string name="set_column">Set</string>
+    <string name="previous_column">Previous</string>
+    <string name="set_options">Options for set %1$d</string>
+    <string name="numeric_weight">Weight (%1$s)</string>
+    <string name="rest_minus_15">−15s</string>
+    <string name="rest_plus_15">+15s</string>
+    <string name="rest_subtract_description">Subtract 15 seconds from rest</string>
+    <string name="rest_add_description">Add 15 seconds to rest</string>
+    <string name="set_type_working">Working Set</string>
+    <string name="set_type_warm_up">Warm-up</string>
+    <string name="set_type_drop">Drop Set</string>
+    <string name="set_type_failure">Failure</string>
+    <string name="set_type_description">Set %1$d, %2$s</string>
+    <string name="set_warm_up_number">%1$d WU</string>
+    <string name="set_drop_number">%1$d D</string>
+    <string name="set_failure_number">%1$d F</string>
+    <string name="picker_rank_hint">Recent and frequent exercises first</string>
+</resources>

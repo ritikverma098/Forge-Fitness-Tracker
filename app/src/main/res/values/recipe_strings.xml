@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recipe_title">Recipe builder</string>
+    <string name="recipe_create">Create recipe</string>
+    <string name="recipe_name">Recipe name</string>
+    <string name="recipe_name_error">Enter a recipe name up to 250 characters.</string>
+    <string name="recipe_servings">Number of servings</string>
+    <string name="recipe_servings_help">Set how many portions this recipe makes.</string>
+    <string name="recipe_servings_error">Enter a number of servings above 0.</string>
+    <string name="recipe_ingredients">Ingredients</string>
+    <string name="recipe_add_ingredient">Add ingredient</string>
+    <string name="recipe_choose_food">Choose a food, then set its amount.</string>
+    <string name="recipe_use_ingredient">Use ingredient</string>
+    <string name="recipe_ingredient_not_added">Ingredient was not added. Return to the recipe to review its size and ingredients.</string>
+    <string name="recipe_self_ingredient">A recipe cannot include itself.</string>
+    <string name="recipe_empty_title">Start with your ingredients</string>
+    <string name="recipe_empty_description">Choose foods from your library. Each ingredient keeps the nutrition and serving you selected.</string>
+    <string name="recipe_amount">Ingredient amount</string>
+    <string name="recipe_ingredient_error">Check this amount, or remove and add the ingredient again.</string>
+    <string name="recipe_ingredients_error">Add at least one ingredient with compatible nutrient units and valid amounts.</string>
+    <string name="recipe_ingredient_units_error">This ingredient reports a nutrient in an incompatible unit. Choose another food with matching nutrient units.</string>
+    <string name="recipe_remove_ingredient">Remove %1$s</string>
+    <string name="recipe_move_up">Move %1$s up</string>
+    <string name="recipe_move_down">Move %1$s down</string>
+    <string name="recipe_cooked_weight_title">Finished weight (optional)</string>
+    <string name="recipe_cooked_weight">Finished cooked weight (g)</string>
+    <string name="recipe_cooked_weight_help">Weigh the finished recipe if you want gram servings. Cooking can change its weight, so raw ingredient weights are not used as finished weight.</string>
+    <string name="recipe_cooked_weight_error">Enter a positive finished weight, or leave blank if unknown.</string>
+    <string name="recipe_per_serving">Nutrition per serving</string>
+    <string name="recipe_per_100g">Nutrition per 100 g</string>
+    <string name="recipe_preview_pending">Add ingredients and enter valid amounts to calculate nutrition.</string>
+    <string name="recipe_unknown_help">Unavailable means at least one ingredient did not report that nutrient.</string>
+    <string name="recipe_missing_weight_help">Add a known finished weight to view nutrition per 100 g.</string>
+    <string name="recipe_save">Save recipe</string>
+    <string name="recipe_invalid_food">Check the recipe name, servings, and ingredient amounts before saving.</string>
+    <string name="recipe_size_error">This recipe has too much stored detail. Use fewer ingredients or shorter text. Your last accepted changes are kept.</string>
+    <string name="recipe_editor_error">This recipe could not be opened. Try again, or return to your library.</string>
+</resources>

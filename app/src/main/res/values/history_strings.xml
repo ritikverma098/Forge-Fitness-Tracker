@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nutrition_history_title">Nutrition history</string>
+    <string name="nutrition_history_all_dates">All logged dates</string>
+    <string name="nutrition_history_range">Date range</string>
+    <string name="nutrition_history_from">From</string>
+    <string name="nutrition_history_to">To</string>
+    <string name="nutrition_history_range_description">Choose the first and last date to include.</string>
+    <string name="nutrition_history_range_error">The last date must be on or after the first date.</string>
+    <string name="nutrition_history_apply">Apply range</string>
+    <string name="nutrition_history_clear">All dates</string>
+    <string name="nutrition_history_between">%1$s – %2$s</string>
+    <string name="nutrition_history_from_date">From %1$s</string>
+    <string name="nutrition_history_to_date">Through %1$s</string>
+    <string name="nutrition_history_empty">No logged days in this range</string>
+    <string name="nutrition_history_empty_description">Log food in your diary or choose another date range to see daily nutrition here.</string>
+    <string name="nutrition_history_error">Nutrition history could not be loaded. Try again.</string>
+    <string name="nutrition_history_more">Load older days</string>
+    <string name="nutrition_history_limit">Narrow the date range to view more logged days.</string>
+    <string name="nutrition_history_remaining">%1$s below calorie goal</string>
+    <string name="nutrition_history_over">%1$s over calorie goal</string>
+    <string name="nutrition_history_on_goal">Calorie goal met</string>
+    <string name="nutrition_history_goal">Calorie goal: %1$s</string>
+    <plurals name="nutrition_history_entries">
+        <item quantity="one">%1$d food entry</item>
+        <item quantity="other">%1$d food entries</item>
+    </plurals>
+</resources>

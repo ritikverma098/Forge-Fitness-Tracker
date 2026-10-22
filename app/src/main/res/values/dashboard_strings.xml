@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nutrition_daily_subtitle">Your daily nutrition</string>
+    <string name="nutrition_previous_day">Previous day</string>
+    <string name="nutrition_next_day">Next day</string>
+    <string name="nutrition_choose_day">Choose a day</string>
+    <string name="nutrition_eaten">Calories eaten</string>
+    <string name="nutrition_goal">Goal</string>
+    <string name="nutrition_remaining">Remaining</string>
+    <string name="nutrition_over_goal">Over goal</string>
+    <string name="nutrition_kcal">%1$s kcal</string>
+    <string name="nutrition_grams">%1$s g</string>
+    <string name="nutrition_lower_bound">At least %1$s</string>
+    <string name="nutrition_goal_unset">Not set</string>
+    <string name="nutrition_remaining_unknown">Incomplete data</string>
+    <string name="nutrition_macro_target">%1$s / %2$s</string>
+    <string name="nutrition_unknown_help">Totals include reported values only. Missing nutrients are unavailable, so remaining amounts cannot be calculated exactly.</string>
+    <plurals name="nutrition_missing_foods">
+        <item quantity="one">%1$d entry did not report this nutrient.</item>
+        <item quantity="other">%1$d entries did not report this nutrient.</item>
+    </plurals>
+    <string name="nutrition_meal_empty">Nothing logged yet.</string>
+    <string name="nutrition_add_to_meal">Add food to %1$s</string>
+    <string name="nutrition_expand_meal">Show %1$s</string>
+    <string name="nutrition_collapse_meal">Hide %1$s</string>
+    <string name="nutrition_entry_actions">Actions for %1$s</string>
+    <string name="nutrition_repeat">Repeat food</string>
+    <string name="nutrition_repeat_meal">Repeat meal</string>
+    <string name="nutrition_repeat_title">Repeat to another meal</string>
+    <string name="nutrition_repeat_description">Choose a date and meal. The original entries stay in your diary.</string>
+    <string name="nutrition_repeat_confirm">Add copies</string>
+    <string name="nutrition_delete_entry">Delete entry</string>
+    <string name="nutrition_delete_title">Delete this diary entry?</string>
+    <string name="nutrition_delete_description">This removes the logged serving from your diary.</string>
+    <string name="nutrition_error_title">Diary could not be loaded</string>
+    <string name="nutrition_error_description">Try again to load this day.</string>
+    <string name="nutrition_retry">Try again</string>
+    <string name="nutrition_diary_edit">Edit diary entry</string>
+    <string name="nutrition_diary_save">Save entry</string>
+    <string name="nutrition_frozen_info">Nutrition uses the food information saved with this entry.</string>
+    <string name="nutrition_entry_missing">Diary entry unavailable</string>
+    <string name="nutrition_entry_missing_description">This entry may have been deleted. Return to your diary.</string>
+    <string name="diary_updated">Diary updated.</string>
+    <string name="nutrition_goals">Nutrition goals</string>
+    <string name="nutrition_goals_effective">Effective from this date</string>
+    <string name="nutrition_goals_help">These daily goals apply from this date until a later goal takes effect. Leave a field blank when you do not want a target.</string>
+    <string name="nutrition_goal_kcal">Calorie goal (kcal)</string>
+    <string name="nutrition_goal_protein">Protein goal (g)</string>
+    <string name="nutrition_goal_carbs">Carbohydrate goal (g)</string>
+    <string name="nutrition_goal_fat">Fat goal (g)</string>
+    <string name="nutrition_goal_error">Enter a number from 0 to 1,000,000,000, or leave blank.</string>
+    <string name="nutrition_goal_save">Save goals</string>
+</resources>

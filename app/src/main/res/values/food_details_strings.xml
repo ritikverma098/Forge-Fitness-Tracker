@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="food_details_title">Food details</string>
+    <string name="food_details_loading">Loading food…</string>
+    <string name="food_details_error_title">Food could not be loaded</string>
+    <string name="food_details_error_description">Try again to load this food’s nutrition information.</string>
+    <string name="food_details_missing_title">Food unavailable</string>
+    <string name="food_details_missing_description">This food may have been removed. Return to the library to choose another food.</string>
+    <string name="food_details_retry">Try again</string>
+    <string name="food_reference">Reference food</string>
+    <string name="food_branded_reference">Branded reference food</string>
+    <string name="food_custom">Custom food</string>
+    <string name="food_recipe">Recipe</string>
+    <string name="food_brand">Brand: %1$s</string>
+    <string name="food_reference_basis">Source values per %1$s</string>
+    <string name="food_gram_amount">%1$s g</string>
+    <string name="food_milliliter_amount">%1$s ml</string>
+    <string name="food_serving_title">Your serving</string>
+    <string name="food_unit_grams">Grams (g)</string>
+    <string name="food_unit_milliliters">Milliliters (ml)</string>
+    <string name="food_unit_servings">Servings</string>
+    <string name="food_quantity">Amount</string>
+    <string name="food_quantity_error">Enter an amount above 0, up to 1,000,000.</string>
+    <string name="food_amount_too_large">Use a smaller amount to calculate nutrition.</string>
+    <string name="food_selected_serving">%1$s × %2$s</string>
+    <string name="food_nutrition_for_serving">Nutrition for this serving</string>
+    <string name="food_energy">Calories</string>
+    <string name="food_protein">Protein</string>
+    <string name="food_carbs">Carbohydrates</string>
+    <string name="food_fat">Fat</string>
+    <string name="food_nutrient_value">%1$s %2$s</string>
+    <string name="food_nutrient_unavailable">Unavailable</string>
+    <string name="food_pending_value">—</string>
+    <string name="food_unavailable_explanation">Unavailable means the source did not report a value.</string>
+    <string name="food_more_nutrients">More nutrients</string>
+    <string name="food_vitamins">Vitamins</string>
+    <string name="food_minerals">Minerals</string>
+    <string name="food_other_nutrients">Other nutrients</string>
+    <string name="food_expand_nutrients">Show %1$s</string>
+    <string name="food_collapse_nutrients">Hide %1$s</string>
+    <string name="food_notes">Notes</string>
+    <string name="food_source_title">Data source</string>
+    <string name="food_source_id">Source reference: %1$s</string>
+    <string name="food_view_source">View original source</string>
+    <string name="food_source_link_failed">The source link could not be opened.</string>
+    <string name="food_confirm_serving">Use this serving</string>
+    <plurals name="food_serving_amount">
+        <item quantity="one">%1$s serving</item>
+        <item quantity="other">%1$s servings</item>
+    </plurals>
+</resources>

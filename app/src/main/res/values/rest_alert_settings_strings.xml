@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rest_alert_settings_title">Rest alerts</string>
+    <string name="rest_alert_settings_description">Get a notification when rest ends, even with Forge in the background or your screen locked.</string>
+    <string name="rest_alert_notifications_enabled">Rest notifications are enabled</string>
+    <string name="rest_alert_notifications_disabled">Rest notifications are off</string>
+    <string name="rest_alert_enable_notifications">Enable rest notifications</string>
+    <string name="rest_alert_exact_enabled">Precise timer alerts are enabled</string>
+    <string name="rest_alert_inexact_description">Without precise timing access, Android may delay background rest alerts. Your workout timer still works.</string>
+    <string name="rest_alert_allow_exact_timing">Allow precise timing</string>
+    <string name="rest_alert_timing_settings">Timing settings</string>
+    <string name="rest_alert_sound_vibration">Sound and vibration settings</string>
+    <string name="rest_alert_channel_settings_description">Rest alert sound and vibration follow your Android notification settings.</string>
+    <string name="rest_alert_settings_unavailable">Android settings could not be opened. Please try again.</string>
+    <string name="rest_alert_workout_hint">Get an alert when rest ends.</string>
+    <string name="rest_alert_workout_allow">Allow</string>
+    <string name="rest_alert_workout_inexact">Background alerts may be delayed.</string>
+    <string name="rest_alert_workout_timing">Timing</string>
+</resources>

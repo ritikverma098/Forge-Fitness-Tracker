@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Backup &amp; restore</string>
+    <string name="backup_description">Save your workouts, exercise library, routines, personal nutrition data and settings as a JSON file. Your active workout is included; reference food catalogs stay on this device.</string>
+    <string name="backup_create">Create backup</string>
+    <string name="backup_restore">Restore backup</string>
+    <string name="backup_file_name">forge-backup-%1$s.json</string>
+    <string name="backup_file_hint">Choose a Forge JSON backup to review before restoring.</string>
+    <string name="backup_operation_busy">Working with your backup…</string>
+    <string name="backup_restore_busy">Restoring your backup…</string>
+    <string name="backup_restore_confirm_title">Restore this backup?</string>
+    <string name="backup_created_at">Created %1$s</string>
+    <string name="backup_restore_replaces">Restoring replaces your workouts, exercise library, routines and app preferences, including any active workout.</string>
+    <string name="backup_restore_replaces_nutrition">Restoring replaces your workouts, exercise library, routines, app preferences and personal nutrition data. This includes custom foods, recipes, diary entries, favorites, goals, body-weight records and calorie settings.</string>
+    <string name="backup_reference_catalogs_kept">Installed reference food catalogs are kept. Workout calorie records are restored with the workouts in this file.</string>
+    <string name="backup_legacy_nutrition_kept">This workout-only backup keeps your existing foods, recipes, diary entries, favorites, goals, body weights and nutrition settings. Linked workout calorie records are regenerated for the restored workouts.</string>
+    <string name="backup_restore_confirm">Replace and restore</string>
+    <string name="backup_restore_cancel">Cancel</string>
+    <plurals name="backup_workout_count">
+        <item quantity="one">%1$d workout</item>
+        <item quantity="other">%1$d workouts</item>
+    </plurals>
+    <plurals name="backup_routine_count">
+        <item quantity="one">%1$d routine</item>
+        <item quantity="other">%1$d routines</item>
+    </plurals>
+    <plurals name="backup_custom_exercise_count">
+        <item quantity="one">%1$d custom exercise</item>
+        <item quantity="other">%1$d custom exercises</item>
+    </plurals>
+    <plurals name="backup_custom_food_count">
+        <item quantity="one">%1$d custom food</item>
+        <item quantity="other">%1$d custom foods</item>
+    </plurals>
+    <plurals name="backup_recipe_count">
+        <item quantity="one">%1$d recipe</item>
+        <item quantity="other">%1$d recipes</item>
+    </plurals>
+    <plurals name="backup_diary_count">
+        <item quantity="one">%1$d diary entry</item>
+        <item quantity="other">%1$d diary entries</item>
+    </plurals>
+    <plurals name="backup_body_weight_count">
+        <item quantity="one">%1$d body-weight record</item>
+        <item quantity="other">%1$d body-weight records</item>
+    </plurals>
+</resources>

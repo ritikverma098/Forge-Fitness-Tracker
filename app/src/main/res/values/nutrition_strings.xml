@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_title">Food catalog</string>
+    <string name="catalog_subtitle">Reference foods, available offline.</string>
+    <string name="catalog_manage_title">Your offline library</string>
+    <string name="catalog_manage_description">The included catalog installs when you open Nutrition. Add a trusted .forgefoods pack from a file or an optional download.</string>
+    <string name="catalog_import">Import pack</string>
+    <string name="catalog_download">Download pack</string>
+    <string name="catalog_retry_bundled">Retry included catalog</string>
+    <string name="catalog_cancel">Cancel operation</string>
+    <string name="catalog_preparing">Preparing catalog…</string>
+    <string name="catalog_progress_percent">%1$d%% complete</string>
+    <string name="catalog_installed_title">Installed catalogs</string>
+    <string name="catalog_pack_version">Version %1$s</string>
+    <string name="catalog_pack_source">Source: %1$s</string>
+    <string name="catalog_pack_license">License: %1$s</string>
+    <string name="catalog_view_source">View source</string>
+    <string name="catalog_view_license">CC0 license</string>
+    <string name="catalog_empty_title">No catalog installed</string>
+    <string name="catalog_empty_description">Install the included catalog or import a pack to browse reference foods.</string>
+    <string name="catalog_preview_title">A look inside</string>
+    <string name="catalog_preview_description">Showing up to 50 reference foods, in alphabetical order.</string>
+    <string name="catalog_base_grams">Per %1$s g</string>
+    <string name="catalog_base_milliliters">Per %1$s ml</string>
+    <string name="catalog_base_servings">Serving basis: %1$s</string>
+    <string name="catalog_download_title">Download a catalog pack</string>
+    <string name="catalog_download_description">Enter the HTTPS address of a .forgefoods catalog pack and the ZIP SHA-256 supplied by its publisher. Downloading uses an internet connection.</string>
+    <string name="catalog_download_url">HTTPS pack URL</string>
+    <string name="catalog_download_hash">ZIP SHA-256</string>
+    <string name="catalog_download_confirm">Download and install</string>
+    <string name="catalog_invalid_url">Enter a valid HTTPS URL without credentials.</string>
+    <string name="catalog_invalid_hash">Enter the publisher’s 64-character hexadecimal SHA-256.</string>
+    <string name="catalog_installed_feedback">Catalog installed and ready offline.</string>
+    <string name="catalog_current_feedback">This catalog is already installed.</string>
+    <string name="catalog_cancelled_feedback">Catalog operation cancelled.</string>
+    <string name="catalog_failed_feedback">The catalog could not be installed. Your existing foods are unchanged.</string>
+    <string name="catalog_invalid_pack">This file is not a valid .forgefoods catalog pack.</string>
+    <string name="catalog_unsupported_version">This catalog format requires a newer version of Forge.</string>
+    <string name="catalog_hash_mismatch">The downloaded pack did not match the supplied SHA-256.</string>
+    <string name="catalog_id_conflict">This pack conflicts with foods from another source.</string>
+    <string name="catalog_too_large">This catalog exceeds the supported pack size.</string>
+    <string name="catalog_io_error">The catalog could not be read. Check the file or connection and try again.</string>
+    <string name="catalog_read_failed">Installed foods could not be loaded. Try loading the catalog again.</string>
+    <string name="catalog_retry_loading">Retry loading foods</string>
+    <string name="catalog_installed_status">Available offline</string>
+    <string name="catalog_link_failed">The source link could not be opened.</string>
+    <string name="catalog_dismiss_feedback">Dismiss message</string>
+    <plurals name="catalog_total_foods">
+        <item quantity="one">%1$d reference food</item>
+        <item quantity="other">%1$d reference foods</item>
+    </plurals>
+    <plurals name="catalog_pack_foods">
+        <item quantity="one">%1$d food installed</item>
+        <item quantity="other">%1$d foods installed</item>
+    </plurals>
+    <plurals name="catalog_working_foods">
+        <item quantity="one">%1$d food in pack</item>
+        <item quantity="other">%1$d foods in pack</item>
+    </plurals>
+    <string name="catalog_insufficient_storage">There is not enough free storage to install this catalog safely. Free some space and retry. Your data has not changed.</string>
+</resources>

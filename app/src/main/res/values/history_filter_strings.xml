@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_filter_unavailable_exercise">Exercise no longer in history</string>
+    <string name="history_filter_open">Filter workout history</string>
+    <string name="history_filter_search">Search workout names</string>
+    <string name="history_filter_clear_search">Clear workout search</string>
+    <string name="history_filter_active">Filters active</string>
+    <string name="history_filter_clear_all">Clear all filters</string>
+    <string name="history_filter_title">Find a workout</string>
+    <string name="history_filter_body">Combine filters to narrow down your history.</string>
+    <string name="history_filter_exercise">Exercise</string>
+    <string name="history_filter_any_exercise">Any exercise</string>
+    <string name="history_filter_archived">%1$s · Archived</string>
+    <string name="history_filter_muscle">Muscle group</string>
+    <string name="history_filter_any_muscle">Any muscle group</string>
+    <string name="history_filter_dates">Date range</string>
+    <string name="history_filter_all_dates">All dates</string>
+    <string name="history_filter_date_range">%1$s – %2$s</string>
+    <string name="history_filter_from_date">From %1$s</string>
+    <string name="history_filter_to_date">Until %1$s</string>
+    <string name="history_filter_choose_dates">Choose date range</string>
+    <string name="history_filter_clear_dates">Clear dates</string>
+    <string name="history_filter_apply_dates">Apply dates</string>
+    <string name="history_filter_cancel">Cancel</string>
+    <string name="history_filter_done">Show workouts</string>
+    <string name="history_filter_no_matches">No matching workouts</string>
+    <string name="history_filter_no_matches_body">Try another name, exercise, muscle group, or date range.</string>
+</resources>

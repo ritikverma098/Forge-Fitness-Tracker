@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rest_alert_channel_name">Rest completion</string>
+    <string name="rest_alert_channel_description">A gentle reminder when your workout rest timer finishes.</string>
+    <string name="rest_alert_complete_title">Rest over</string>
+    <string name="rest_alert_complete_body">Ready for your next set?</string>
+</resources>

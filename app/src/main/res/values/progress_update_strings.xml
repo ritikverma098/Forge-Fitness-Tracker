@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="progress_metric_label">Chart metric</string>
+    <string name="progress_range_label">Time range</string>
+    <string name="progress_metric_best_weight">Best weight</string>
+    <string name="progress_metric_estimated_1rm">Estimated 1RM</string>
+    <string name="progress_metric_best_reps">Best reps</string>
+    <string name="progress_metric_volume">Volume</string>
+    <string name="progress_metric_frequency">Frequency</string>
+    <string name="progress_metric_duration">Duration</string>
+    <string name="progress_metric_distance">Distance</string>
+    <string name="progress_range_one_month">1M</string>
+    <string name="progress_range_three_months">3M</string>
+    <string name="progress_range_six_months">6M</string>
+    <string name="progress_range_one_year">1Y</string>
+    <string name="progress_range_all">All</string>
+    <string name="progress_range_one_month_description">Last month</string>
+    <string name="progress_range_three_months_description">Last three months</string>
+    <string name="progress_range_six_months_description">Last six months</string>
+    <string name="progress_range_one_year_description">Last year</string>
+    <string name="progress_range_all_description">All time</string>
+    <string name="progress_estimated_1rm">Estimated 1RM</string>
+    <string name="progress_estimated_chart">Estimated strength</string>
+    <string name="progress_frequency_chart">Workout frequency</string>
+    <string name="progress_sessions_per_week">sessions/week</string>
+    <string name="progress_epley_note">Estimated 1RM uses the Epley formula from completed sets. Use it as a guide.</string>
+    <string name="progress_range_empty_title">No sessions in this range</string>
+    <string name="progress_range_empty_description">Choose a longer time range or log a workout with this exercise.</string>
+    <string name="progress_chart_empty">No recorded values in this range.</string>
+    <string name="progress_archived_exercise">%1$s · Archived</string>
+    <string name="progress_metric_value">%1$s %2$s</string>
+    <string name="progress_week_selection_hint">Tap the chart to inspect a week.</string>
+    <string name="progress_previous_week">Previous week</string>
+    <string name="progress_next_week">Next week</string>
+    <plurals name="progress_weekly_chart_description">
+        <item quantity="one">%1$s. %2$d week. First value %3$s, most recent value %4$s.</item>
+        <item quantity="other">%1$s. %2$d weeks. First value %3$s, most recent value %4$s.</item>
+    </plurals>
+</resources>

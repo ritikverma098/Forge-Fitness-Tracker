@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="validation_exercise_name_empty">Enter an exercise name.</string>
+    <string name="validation_exercise_name_length">Use an exercise name with 100 characters or fewer.</string>
+    <string name="validation_exercise_duplicate">An exercise with this name already exists. Choose a different name.</string>
+    <string name="validation_secondary_muscle">Choose a different secondary muscle group.</string>
+    <string name="validation_notes_length">Use notes with 5,000 characters or fewer.</string>
+    <string name="validation_name_empty">Enter a name.</string>
+    <string name="validation_name_length">Use a name with 100 characters or fewer.</string>
+    <string name="validation_weight">Enter a valid, nonnegative weight up to 10,000 kg.</string>
+    <string name="validation_reps">Enter whole repetitions from 0 to 10,000.</string>
+    <string name="validation_duration">Enter a duration from 0 to 604,800 seconds.</string>
+    <string name="validation_distance">Enter a distance from 0 to 100,000 km.</string>
+    <string name="validation_complete_reps">Enter repetitions before completing this set.</string>
+    <string name="validation_complete_duration">Enter a duration before completing this set.</string>
+    <string name="validation_complete_distance">Enter a distance before completing this set.</string>
+    <string name="validation_exercise_missing">This exercise is no longer available.</string>
+    <string name="validation_edit_default">Create a custom exercise to change the default library.</string>
+    <string name="validation_type_history">This exercise has workout history. Create a new exercise to use a different tracking type.</string>
+    <string name="validation_delete_default">Only custom exercises can be deleted.</string>
+    <string name="validation_workout_source">Choose either a routine or a previous workout.</string>
+    <string name="validation_routine_missing">This routine is no longer available.</string>
+    <string name="validation_workout_missing">This workout is no longer available.</string>
+    <string name="validation_already_complete">This workout is already complete.</string>
+    <string name="validation_empty_workout">Complete at least one set before finishing this workout.</string>
+    <string name="validation_exercise_deleted">This exercise has been deleted from the library.</string>
+    <string name="validation_duplicate_workout_exercise">This exercise is already in your workout.</string>
+    <string name="validation_workout_exercise_missing">This exercise was removed from the workout.</string>
+    <string name="validation_set_missing">This set was removed.</string>
+    <string name="validation_move_set">A set cannot be moved to another exercise.</string>
+    <string name="validation_rest_finished">A finished workout cannot start a rest timer.</string>
+    <string name="validation_duplicate_routine_exercise">This exercise is already in this routine.</string>
+    <string name="validation_routine_exercise_missing">This exercise was removed from the routine.</string>
+</resources>
