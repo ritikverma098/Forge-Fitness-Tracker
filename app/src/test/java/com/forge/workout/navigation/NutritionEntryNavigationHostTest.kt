@@ -3,6 +3,10 @@ package com.forge.workout.navigation
 import android.net.Uri
 import android.app.Activity
 import android.content.Intent
+import androidx.compose.runtime.Composer
+import androidx.compose.runtime.CompositionTracer
+import androidx.compose.runtime.InternalComposeTracingApi
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -61,6 +65,7 @@ import com.forge.workout.repository.RoomWorkoutRepository
 import com.forge.workout.repository.WorkoutRepository
 import com.forge.workout.ui.navigation.destinations
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -139,6 +144,83 @@ class NutritionEntryNavigationHostTest {
         backTo(R.string.ready_to_train)
         assertTabs(R.string.workout)
         assertTrue(runBlocking { repository.observeWorkouts().first().isEmpty() })
+    }
+
+    @OptIn(InternalComposeTracingApi::class)
+    @Test fun `returning from Home children retains bottom bar composition tab positions and host bounds`() {
+        val bodyExecutions = AtomicInteger()
+        val trace = object : CompositionTracer {
+            override fun isTraceInProgress() = true
+            override fun traceEventStart(key: Int, dirty1: Int, dirty2: Int, info: String) {
+                if (info.substringBefore(" (") == "androidx.compose.material3.NavigationBar") {
+                    bodyExecutions.incrementAndGet()
+                }
+            }
+            override fun traceEventEnd() = Unit
+        }
+        compose.runOnUiThread { Composer.setTracer(trace) }
+        try {
+            // Observe a fresh composition first so a renamed/disabled trace hook cannot pass with zero counts.
+            compose.activityRule.scenario.recreate()
+            waitForText(R.string.home_subtitle)
+            waitForTag("forge_bottom_navigation")
+            assertTabs(R.string.home)
+            assertTrue("The tracer must observe the initial Material NavigationBar body", bodyExecutions.get() > 0)
+            val originalBar = compose.onNodeWithTag("forge_bottom_navigation").fetchSemanticsNode()
+            val originalBarBounds = originalBar.boundsInRoot
+            val originalHost = compose.onNodeWithTag("forge_navigation_host").fetchSemanticsNode().boundsInRoot
+            val originalTabs = destinations.associate { destination ->
+                destination.label to compose.onNode(tabRole and hasText(text(destination.label), substring = false))
+                    .fetchSemanticsNode().boundsInRoot
+            }
+
+            fun assertBounds(label: String, expected: Rect, actual: Rect) {
+                assertEquals("$label left", expected.left, actual.left, .5f)
+                assertEquals("$label top", expected.top, actual.top, .5f)
+                assertEquals("$label right", expected.right, actual.right, .5f)
+                assertEquals("$label bottom", expected.bottom, actual.bottom, .5f)
+            }
+            fun assertRetainedHome() {
+                assertTabs(R.string.home)
+                val bar = compose.onNodeWithTag("forge_bottom_navigation").fetchSemanticsNode()
+                assertEquals("Returning Home must retain the bar's semantics identity", originalBar.id, bar.id)
+                assertBounds("Bottom bar", originalBarBounds, bar.boundsInRoot)
+                assertBounds("Navigation host", originalHost,
+                    compose.onNodeWithTag("forge_navigation_host").fetchSemanticsNode().boundsInRoot)
+                originalTabs.forEach { (label, bounds) ->
+                    assertBounds(text(label), bounds,
+                        compose.onNode(tabRole and hasText(text(label), substring = false)).fetchSemanticsNode().boundsInRoot)
+                }
+            }
+
+            listOf(false, true, false).forEach { systemBack ->
+                compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+                    .performScrollToNode(hasText(text(R.string.home_exercises), substring = false))
+                compose.onNodeWithText(text(R.string.home_exercises)).assertIsDisplayed().performClick()
+                waitForText(R.string.library_subtitle)
+                compose.onAllNodes(tabRole).assertCountEquals(0)
+                assertBounds("Child navigation host", originalHost,
+                    compose.onNodeWithTag("forge_navigation_host").fetchSemanticsNode().boundsInRoot)
+                compose.runOnIdle { bodyExecutions.set(0) }
+                if (systemBack) {
+                    compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+                    waitForText(R.string.home_subtitle)
+                } else backTo(R.string.home_subtitle)
+                assertEquals("Back to unchanged Home must not execute Material NavigationBar again", 0, bodyExecutions.get())
+                assertRetainedHome()
+            }
+
+            compose.onNodeWithContentDescription(text(R.string.overview_settings)).assertIsDisplayed().performClick()
+            waitForText(R.string.settings_subtitle)
+            compose.onAllNodes(tabRole).assertCountEquals(0)
+            compose.runOnIdle { bodyExecutions.set(0) }
+            backTo(R.string.home_subtitle)
+            assertEquals("Settings Back must retain the same Material bar body", 0, bodyExecutions.get())
+            assertRetainedHome()
+            assertTrue(runBlocking { repository.observeWorkouts().first().isEmpty() })
+        } finally {
+            compose.runOnUiThread { Composer.setTracer(null) }
+        }
     }
 
     @Test fun `active Workout retains sets when opening library routines Nutrition and recreating`() {
@@ -655,6 +737,10 @@ class NutritionEntryNavigationHostTest {
         waitForText(R.string.library_picker_subtitle)
         compose.onNodeWithTag("library_exercise_results").performScrollToNode(hasText("Bench Press", substring = false))
         compose.onNodeWithText("Bench Press", substring = false).performClick()
+        // Returning to a scrolled list need not compose the off-screen name field.
+        waitForTag("workout_exercise_list")
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasText(text(R.string.workout_name), substring = false))
         waitForText(R.string.workout_name)
         assertTrue(runBlocking { repository.observeWorkouts().first() }.single { it.workout.endTime == null }.exercises.isNotEmpty())
     }

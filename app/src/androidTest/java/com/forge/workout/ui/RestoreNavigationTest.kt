@@ -9,6 +9,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -102,7 +104,8 @@ class RestoreNavigationTest {
         waitForText(quantityText(R.plurals.library_results, original.exercises.size, original.exercises.size))
         compose.onNode(hasSetTextAction()).performTextReplacement("Bench Press")
         waitForText("Bench Press")
-        compose.onNodeWithText("Bench Press", substring = false).assertIsDisplayed()
+        compose.onNode(hasText("Bench Press", substring = false) and
+            hasAnyAncestor(hasTestTag("library_exercise_results"))).assertIsDisplayed()
         backToHome()
         navigate(R.string.nutrition, R.string.nutrition_empty)
         navigate(R.string.history, R.string.history_subtitle)
@@ -192,10 +195,13 @@ class RestoreNavigationTest {
         backToHome()
         openRoutines()
         waitForText(RESTORED_ROUTINE)
-        compose.onNodeWithText(RESTORED_ROUTINE, substring = false).performClick()
-        waitForText(text(R.string.routines_add_exercise))
+        // The merged card's centre overlaps its nested Start button; use Edit explicitly.
+        compose.onNodeWithTag("routine_edit_${routine.id}").performScrollTo().performClick()
+        waitForTag("routine_editor_list")
         compose.onNodeWithText(RESTORED_EXERCISE, substring = false).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.routines_start)).performScrollTo().performClick()
+        compose.onNodeWithTag("routine_editor_list")
+            .performScrollToNode(hasTestTag("routine_start_${routine.id}"))
+        compose.onNodeWithTag("routine_start_${routine.id}").performClick()
         waitForText(text(R.string.workout_name))
         awaitRepository {
             repository.observeWorkouts().first().any { it.workout.endTime == null && it.exercises.single().exercise.id == exercise.id }
@@ -274,12 +280,18 @@ class RestoreNavigationTest {
     }
 
     private fun addExercise(name: String) {
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasText(text(R.string.add_exercise), substring = false))
         compose.onAllNodesWithText(text(R.string.add_exercise)).onFirst().performScrollTo().performClick()
         waitForText(text(R.string.library_picker_subtitle))
         compose.onNode(hasSetTextAction()).performTextReplacement(name)
         waitForText(name)
         compose.onNodeWithTag("library_exercise_results").performScrollToNode(hasText(name, substring = false))
-        compose.onNodeWithText(name, substring = false).performClick()
+        compose.onNode(hasText(name, substring = false) and
+            hasAnyAncestor(hasTestTag("library_exercise_results"))).performClick()
+        waitForTag("workout_exercise_list")
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasText(text(R.string.workout_name), substring = false))
         waitForText(text(R.string.workout_name))
     }
 

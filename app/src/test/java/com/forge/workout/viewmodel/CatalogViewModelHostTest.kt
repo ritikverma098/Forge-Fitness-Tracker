@@ -122,6 +122,48 @@ class CatalogViewModelHostTest {
         assertEquals("content://catalog/retry", service.lastDocument.toString())
     }
 
+    @Test fun `progress cancellation and retry remain visible before either database read completes`() = runTest(dispatcher) {
+        val packRead = CompletableDeferred<List<CatalogPackEntity>>()
+        val foodRead = CompletableDeferred<List<FoodEntity>>()
+        val delayedReads = object : NutritionRepository by repository {
+            override fun observeCatalogPacks(): Flow<List<CatalogPackEntity>> = flow { emit(packRead.await()) }
+            override fun observeFoods(query: String, sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean,
+                limit: Int, offset: Int): Flow<List<FoodEntity>> = flow { emit(foodRead.await()) }
+        }
+        val model = keep(delayedReads)
+        service.gate = CompletableDeferred()
+        // Nutrition starts the import before the catalog screen subscribes.
+        model.ensureBundled()
+        runCurrent()
+        observe(model)
+        runCurrent()
+        assertTrue(model.state.value.busy)
+        assertEquals(.4f, model.state.value.operation.progress, .0001f)
+        model.cancel()
+        runCurrent()
+        assertFalse(model.state.value.busy)
+        assertEquals(CatalogFeedback.CANCELLED, model.state.value.feedback)
+
+        val retry = CompletableDeferred<CatalogInstallResult>()
+        service.gate = retry
+        model.retryBundled()
+        runCurrent()
+        assertTrue(model.state.value.busy)
+        assertEquals(2, service.calls.size)
+        packRead.complete(listOf(service.result.pack))
+        runCurrent()
+        assertEquals(10, model.state.value.totalFoods)
+        assertTrue(model.state.value.busy)
+        val preview = FoodEntity(id = "late-reference", name = "Late reference", sourceType = FoodSourceType.REFERENCE)
+        foodRead.complete(listOf(preview))
+        runCurrent()
+        assertEquals(listOf(preview), model.state.value.foods)
+        retry.complete(service.result)
+        runCurrent()
+        assertFalse(model.state.value.busy)
+        assertEquals(CatalogFeedback.INSTALLED, model.state.value.feedback)
+    }
+
     @Test fun `invalid downloads do not reach service and verified failure preserves foods before retry`() = runTest(dispatcher) {
         val oldFood = FoodDetail(FoodEntity(id = "original", name = "Original reference", sourceType = FoodSourceType.REFERENCE))
         repository.upsertFood(oldFood)

@@ -8,15 +8,36 @@ Training and nutrition work offline, including the bundled food catalog. There a
 
 [Features](#features) · [Build and install](#build-and-install) · [Backup and restore](#backup-and-restore) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
 
+## Download
+
+[Download Forge 1.3.0 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.0/Forge-1.3.0.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+
+The downloadable APK uses the optimized release build, signed with the existing **development/debug key for sideload testing**. It does not use a production Play Store signing key. Android requires the same signing certificate to update an installed copy; back up your data before changing installations. The source project's normal `assembleRelease` remains unsigned, and no signing credentials are included.
+
 ## Screenshots
 
-Physical-device screenshots are not yet included in this repository.
+Captured from the current build on an Android 17 emulator using synthetic QA data.
+
+| Home | Active workout | Nutrition |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.png" alt="Forge Home dashboard" width="220"> | <img src="docs/screenshots/workout.png" alt="Active workout and set logging" width="220"> | <img src="docs/screenshots/nutrition.png" alt="Nutrition dashboard and food diary" width="220"> |
+| Routines | History | Progress |
+| <img src="docs/screenshots/routines.png" alt="Reusable workout routines" width="220"> | <img src="docs/screenshots/history.png" alt="Completed workout history" width="220"> | <img src="docs/screenshots/progress.png" alt="Exercise progress and training metrics" width="220"> |
 
 ## Development status
 
 The **1.3.0 feature implementation is complete**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and additional regional food packs where suitable redistribution rights and source data are available. Scope and timing are undecided. No additional regional packs are hosted with this release.
+
+### Current stability update
+
+- Home consistently returns to its retained destination after starting a routine.
+- Food catalog progress and Cancel remain available while initial database reads wait for import.
+- Workout set editors and header sections use individually keyed lazy items to reduce large composition stalls.
+- A retained bottom navigation bar avoids repeated construction during Back while preserving the existing transition animations.
+
+These fixes passed host and emulator regression checks without clearing existing user data. Frame timings improved, but emulator spikes remain; repeated first-drag-after-idle scrolling and Back smoothness still require physical-phone verification.
 
 ## Build and install
 
@@ -148,6 +169,8 @@ com.forge.workout/
 
 Workout mutations are serialized. Finishing waits for pending writes; sessions are restored from Room after configuration changes and process recreation. History and progress reuse the application's observed workout graph; filtering and progress indexing/calculations run off the UI thread, without database queries per keystroke. Picker usage uses a focused aggregate Room query. The database contains no fake workout history.
 
+Workout headers and set rows use individually keyed lazy items so revealing an exercise does not construct all its off-screen editors. Timer updates remain isolated from the list. One retained bottom navigation bar follows the destination's existing fade/predictive Back transition, with measured space reserved in main screens and hidden input excluded on child screens.
+
 ## Database
 
 Schema **4** retains `exercises`, `workouts`, `workout_exercises`, `workout_sets`, `routines`, `routine_exercises`, and `app_metadata`. The existing 1→2 migration adds workout muscle groups, and 2→3 adds set types. **3→4 only adds nutrition tables, indexes and FTS synchronization triggers**; workout tables/data are untouched. The registered chain upgrades versions 1/2/3 without clearing data. Foreign keys cascade workout/routine children; exercise references restrict hard deletion. `endTime == null` denotes the persisted active session.
@@ -164,7 +187,9 @@ See [Android Gradle Plugin compatibility](https://developer.android.com/build/re
 
 Unit tests cover calculations, personal records, exercise/set validation, queued workout mutations, backup validation and restore state. Robolectric 4.17 runs Room transactions, migrations, real Compose navigation/recomposition checks and Android alarm/notification behavior on the host, with caches isolated under the project's ignored `.gradle/` directory. Instrumented tests cover Room operations and application navigation. UI tests use an isolated in-memory database and separate test preferences so they never clear user training data.
 
-For the 1.3.0 release, **459 unit/Robolectric tests passed with no failures, errors or skips**, debug and instrumentation APKs built, and lint reported zero findings. The catalog importer's six Python tests also passed. Instrumentation APK compilation does not establish a device-test pass: physical-device alert timing, scrolling, Back-transition smoothness and device screenshots remain unverified.
+The stability update was verified on 28 October 2026 with **463 unit/Robolectric tests passing with no failures, errors or skips**, debug and instrumentation APK builds, and zero lint findings. Android 17/API 37 emulator checks also passed for workout editing/rest controls in both themes, predictive Back commit/cancel, routine/custom-exercise flows, immediate navigation after restore, catalog progress with blocked reads, and 14 Room/repository cases. Instrumentation explicitly uses Espresso 3.7.0 for Android 17 compatibility.
+
+System traces identified large exercise/header prefetch work and repeated bottom-bar construction; focused changes reduce those costs. Emulator debug frame timings still contain spikes, so this is not a claim of uniformly smooth physical-device performance. Verify idle-then-drag scrolling, Back transitions and alert timing on a phone. Testing preserved installed user data; fresh-data restore cases used isolated test databases.
 
 Run the host checks with the commands in [Build and install](#build-and-install). `connectedDebugAndroidTest` requires a connected emulator or device. Run the catalog pipeline tests separately with:
 

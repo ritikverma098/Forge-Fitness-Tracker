@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -68,6 +67,12 @@ import kotlinx.coroutines.withContext
             value = withContext(Dispatchers.Default) { WorkoutPreviousPerformance.build(workout, history) }
         }
     }
+    val exerciseGroups = remember(exercises, previousPerformance) {
+        exercises.map { item ->
+            val previous = previousPerformance[item.exercise.id]
+            ExerciseLogGroup(item, item.sortedSets, previous, previous?.sortedSets?.filter { it.completed }.orEmpty())
+        }
+    }
     Column(Modifier.fillMaxSize().imePadding()) {
         if(!editing) WorkoutRestSection(workout.id, workout.restEndTime, viewModel)
     BoxWithConstraints(Modifier.weight(1f)) {
@@ -76,8 +81,8 @@ import kotlinx.coroutines.withContext
             val tableWidthPx = (constraints.maxWidth - 2 * 20.dp.roundToPx() - 2 * 16.dp.roundToPx()).coerceAtLeast(0)
             tableWidthPx.toDp() / fontScale >= 260.dp
         }
-    LazyColumn(Modifier.fillMaxSize().testTag("workout_exercise_list"), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item(key = "workout_header", contentType = "header") {
+    LazyColumn(Modifier.fillMaxSize().testTag("workout_exercise_list"), contentPadding = PaddingValues(bottom = 24.dp)) {
+        item(key = "workout_header", contentType = "workout_title") {
             ScreenHeader(stringResource(if(editing) R.string.edit_workout else R.string.workout), onBack = if(editing) onBack else null, actions = {
                 if(!editing) {
                     IconButton(onClick = onLibrary) { Icon(Icons.Rounded.GridView, stringResource(R.string.exercise_library)) }
@@ -86,7 +91,10 @@ import kotlinx.coroutines.withContext
                 IconButton(onClick = { showRest = true }) { Icon(Icons.Rounded.Timer, stringResource(R.string.rest_preset)) }
                 if(!editing) IconButton(onClick = { showDiscard = true }) { Icon(Icons.Rounded.DeleteOutline, stringResource(R.string.discard_workout)) }
             })
-            Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        }
+        item(key = "workout_identity", contentType = "workout_identity") {
+            Column(Modifier.fillMaxWidth().testTag("workout_identity").padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Rounded.Circle, null, Modifier.size(8.dp), tint = MaterialTheme.colorScheme.primary)
                     Text(stringResource(if(editing) R.string.session_edit else R.string.session_live), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -98,16 +106,24 @@ import kotlinx.coroutines.withContext
                     if(it.trim().length in 1..100 && notes.length <= 5000) viewModel.rename(workout.id,it,notes)
                 }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_name)) }, singleLine = true,
                     isError = !nameValid, supportingText = { if(!nameValid) Text(stringResource(R.string.workout_name_limit)) }, shape = RoundedCornerShape(18.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.workout_muscle_groups), style = MaterialTheme.typography.labelLarge)
-                    LazyRow(Modifier.testTag("workout_muscle_groups"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(MuscleGroup.entries, key = { it.name }) { group ->
-                            FilterChip(selected = group in workout.muscleGroups,
-                                onClick = { viewModel.toggleMuscleGroup(workout.id, group) },
-                                label = { Text(muscleLabel(group)) })
-                        }
+            }
+        }
+        item(key = "workout_muscles", contentType = "workout_muscles") {
+            Column(Modifier.fillMaxWidth().testTag("workout_muscle_selector").padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.workout_muscle_groups), style = MaterialTheme.typography.labelLarge)
+                LazyRow(Modifier.testTag("workout_muscle_groups"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(MuscleGroup.entries, key = { it.name }) { group ->
+                        FilterChip(selected = group in workout.muscleGroups,
+                            onClick = { viewModel.toggleMuscleGroup(workout.id, group) },
+                            label = { Text(muscleLabel(group)) })
                     }
                 }
+            }
+        }
+        item(key = "workout_notes", contentType = "workout_notes") {
+            Column(Modifier.fillMaxWidth().testTag("workout_notes_section").padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = { showNotes = !showNotes }) { Icon(Icons.AutoMirrored.Rounded.Notes,null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.workout_notes)) }
                 AnimatedVisibility(showNotes) {
                     OutlinedTextField(notes, { notes = it; if(name.trim().length in 1..100 && it.length <= 5000) viewModel.rename(workout.id,name,it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_notes)) }, isError = !notesValid, supportingText = { if(!notesValid) Text(stringResource(R.string.notes_limit)) },shape = RoundedCornerShape(18.dp))
@@ -116,13 +132,33 @@ import kotlinx.coroutines.withContext
         }
         if(exercises.isEmpty()) item(key = "workout_empty", contentType = "empty") {
             EmptyState(stringResource(R.string.no_exercises_yet),stringResource(R.string.no_exercises_description),Icons.Rounded.FitnessCenter,onAddExercise,stringResource(R.string.add_exercise))
+            Spacer(Modifier.height(16.dp))
         }
-        itemsIndexed(exercises, key = { _,item -> item.entry.id }, contentType = { _,_ -> "exercise" }) { index,item ->
-            // Room rebuilds graph objects on a set edit. Retain equal entries so unchanged cards can skip.
-            val retainedItem = remember(item) { item }
-            val previous = previousPerformance[item.exercise.id]
-            val retainedPrevious = remember(previous) { previous }
-            ExerciseLogCard(retainedItem, retainedPrevious, preferences, viewModel, workout.id, editing, index, exercises.size, showPrevious)
+        exerciseGroups.forEachIndexed { index, group ->
+            val exercise = group.item
+            item(key = exercise.entry.id, contentType = "exercise_header") {
+                // Room rebuilds graph objects on a set edit. Retain equal entries so unchanged headers can skip.
+                val retainedItem = remember(exercise) { exercise }
+                val retainedPrevious = remember(group.previous) { group.previous }
+                ExerciseLogCard(retainedItem, retainedPrevious, preferences, viewModel, workout.id, index, exercises.size, showPrevious)
+            }
+            items(group.sets, key = { "set_${it.id}" }, contentType = { "exercise_set" }) { set ->
+                val retainedSet = remember(set) { set }
+                val previous = group.previousSets.getOrNull(set.setNumber - 1) ?: group.previousSets.lastOrNull()
+                val retainedPrevious = remember(previous) { previous }
+                ExerciseSetRow(retainedSet, exercise.exercise.exerciseType, retainedPrevious, preferences, viewModel,
+                    workout.id, editing, showPrevious)
+            }
+            item(key = "exercise_${exercise.entry.id}_add_set", contentType = "exercise_footer") {
+                ExerciseLogSurface(bottom = true, modifier = Modifier.padding(bottom = 16.dp)) {
+                    TextButton(onClick = { viewModel.addSet(exercise.entry.id) },
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                        Icon(Icons.Rounded.Add,null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.add_set))
+                    }
+                }
+            }
         }
         item(key = "workout_actions", contentType = "actions") {
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -149,18 +185,34 @@ import kotlinx.coroutines.withContext
     },confirmButton = { TextButton(onClick = { showRest = false }) { Text(stringResource(R.string.close)) } })
 }
 
-@Composable private fun ExerciseLogCard(item: WorkoutExerciseDetail, previous: WorkoutExerciseDetail?, preferences: UserPreferences, viewModel: WorkoutViewModel, workoutId: Long, editing: Boolean, index: Int, count: Int, showPrevious: Boolean) {
+private data class ExerciseLogGroup(
+    val item: WorkoutExerciseDetail,
+    val sets: List<WorkoutSet>,
+    val previous: WorkoutExerciseDetail?,
+    val previousSets: List<WorkoutSet>,
+)
+
+/** Adjacent lazy items share a surface; only group boundaries have rounded corners and outer spacing. */
+@Composable private fun ExerciseLogSurface(
+    modifier: Modifier = Modifier, top: Boolean = false, bottom: Boolean = false, content: @Composable () -> Unit,
+) {
+    Surface(modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(topStart = if(top) 24.dp else 0.dp, topEnd = if(top) 24.dp else 0.dp,
+            bottomStart = if(bottom) 24.dp else 0.dp, bottomEnd = if(bottom) 24.dp else 0.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow, content = content)
+}
+
+// Retain the header's name so composition traces can distinguish it from individually lazy set rows.
+@Composable private fun ExerciseLogCard(item: WorkoutExerciseDetail, previous: WorkoutExerciseDetail?, preferences: UserPreferences, viewModel: WorkoutViewModel, workoutId: Long, index: Int, count: Int, showPrevious: Boolean) {
     var menu by remember { mutableStateOf(false) }
     var showNotes by rememberSaveable(item.entry.id) { mutableStateOf(item.entry.notes.isNotBlank()) }
     var notes by rememberSaveable(item.entry.id) { mutableStateOf(item.entry.notes) }
     var remove by remember { mutableStateOf(false) }
-    val sets = remember(item.sets) { item.sortedSets }
-    val previousSets = remember(previous) { previous?.sortedSets?.filter { it.completed }.orEmpty() }
     LaunchedEffect(workoutId,item.entry.id,notes.length <= 5000) {
         viewModel.inputValidity(workoutId,"notes_${item.entry.id}",notes.length <= 5000)
     }
-    Card(Modifier.fillMaxWidth().padding(horizontal = 20.dp),shape = RoundedCornerShape(24.dp),colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(Modifier.padding(16.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    ExerciseLogSurface(top = true) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(item.exercise.name,style = MaterialTheme.typography.titleLarge)
@@ -186,24 +238,28 @@ import kotlinx.coroutines.withContext
                 },Modifier.fillMaxWidth(),label = { Text(stringResource(R.string.exercise_notes)) },isError = notes.length > 5000,supportingText = { if(notes.length > 5000) Text(stringResource(R.string.notes_limit)) },shape = RoundedCornerShape(14.dp))
             }
             if(item.sets.isNotEmpty()) SetTableHeader(item.exercise.exerciseType, preferences.weightUnit, showPrevious)
-            sets.forEach { set ->
-                key(set.id) {
-                    val oldSet = previousSets.getOrNull(set.setNumber - 1) ?: previousSets.lastOrNull()
-                    SetRow(set,item.exercise.exerciseType,oldSet,preferences.weightUnit,showPrevious,
-                        onValueChange = { field, value -> viewModel.setValue(set.id,field,value) },
-                        onValidityChange = { field, valid ->
-                            val suffix = if(field == SetField.WEIGHT) "weight" else field.name
-                            viewModel.inputValidity(workoutId,"set_${set.id}_$suffix",valid)
-                        },
-                        onTypeChange = { viewModel.setType(set.id,it) },
-                        onCompleteChange = { viewModel.completeSet(set.id,it,workoutId,preferences.restSeconds,editing) },
-                        onDelete = { viewModel.deleteSet(set.id) })
-                }
-            }
-            TextButton(onClick = { viewModel.addSet(item.entry.id) },modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Add,null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_set)) }
         }
     }
     if(remove) AlertDialog(onDismissRequest = { remove = false },title = { Text(stringResource(R.string.remove_exercise_title)) },text = { Text(stringResource(R.string.remove_exercise_message)) },confirmButton = { TextButton(onClick = { remove = false; viewModel.removeExercise(item.entry.id) }) { Text(stringResource(R.string.delete)) } },dismissButton = { TextButton(onClick = { remove = false }) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable private fun ExerciseSetRow(
+    set: WorkoutSet, type: ExerciseType, previous: WorkoutSet?, preferences: UserPreferences,
+    viewModel: WorkoutViewModel, workoutId: Long, editing: Boolean, showPrevious: Boolean,
+) {
+    ExerciseLogSurface {
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+            SetRow(set,type,previous,preferences.weightUnit,showPrevious,
+                onValueChange = { field, value -> viewModel.setValue(set.id,field,value) },
+                onValidityChange = { field, valid ->
+                    val suffix = if(field == SetField.WEIGHT) "weight" else field.name
+                    viewModel.inputValidity(workoutId,"set_${set.id}_$suffix",valid)
+                },
+                onTypeChange = { viewModel.setType(set.id,it) },
+                onCompleteChange = { viewModel.completeSet(set.id,it,workoutId,preferences.restSeconds,editing) },
+                onDelete = { viewModel.deleteSet(set.id) })
+        }
+    }
 }
 
 fun setDescription(set: WorkoutSet,type: ExerciseType,unit: WeightUnit): String = when(type) {

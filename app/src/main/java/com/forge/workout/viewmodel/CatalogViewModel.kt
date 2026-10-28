@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -50,20 +51,22 @@ class CatalogViewModel(
     private var operation: Job? = null
     private var bundledRequested = false
     private val packs = queryGeneration.flatMapLatest {
-        repository.observeCatalogPacks().catch { failure ->
+        repository.observeCatalogPacks().onStart { emit(emptyList()) }.catch { failure ->
             if (failure is CancellationException) throw failure
             readFailed.value = true
             emit(emptyList())
         }
     }
     private val foods = queryGeneration.flatMapLatest {
-        repository.observeFoods(sourceType = FoodSourceType.REFERENCE, limit = 50).catch { failure ->
+        repository.observeFoods(sourceType = FoodSourceType.REFERENCE, limit = 50).onStart { emit(emptyList()) }.catch { failure ->
             if (failure is CancellationException) throw failure
             readFailed.value = true
             emit(emptyList())
         }
     }
 
+    // Room's first read may wait behind the atomic import. Seed the read flows so
+    // service progress and cancellation remain observable during that wait.
     val state = combine(packs, foods, service.state, feedback, combine(working, readFailed) { busy, failed -> busy to failed }) {
         packs, foods, progress, message, flags ->
         CatalogUiState(packs, foods, progress, flags.first || progress.busy, message, flags.second)

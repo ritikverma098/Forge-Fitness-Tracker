@@ -113,10 +113,16 @@ class ForgeNavigationTest {
         clickText(R.string.home_start_workout)
         waitForText(text(R.string.workout_name))
         input(R.string.workout_name, "Strength UI Test", replace = true)
-        compose.onAllNodesWithText(text(R.string.add_exercise)).onFirst().performClick()
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.onAllNodesWithText(text(R.string.add_exercise)).onFirst().performScrollTo().performClick()
         waitForText(text(R.string.library_picker_subtitle))
         compose.onNode(hasSetTextAction()).performTextInput("Bench Press")
-        compose.onNodeWithText("Bench Press", substring = false).performClick()
+        compose.onNode(hasText("Bench Press", substring = false) and
+            hasAnyAncestor(hasTestTag("library_exercise_results"))).performClick()
+        // The picker keyboard can leave the new card below the reduced viewport.
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasText("Bench Press", substring = false))
         waitForText(text(R.string.reps_label))
         waitForText(text(R.string.weight_label, "kg"))
         inputLabel(text(R.string.weight_label, "kg"), "80")
@@ -340,6 +346,64 @@ class ForgeNavigationTest {
         assertHistoryRestored(editedName)
         assertEquals(editedName, runBlocking {
             repository.observeWorkouts().first().single { it.workout.id == targetId }.workout.name
+        })
+    }
+
+    @Test
+    fun routineStartThenHistoryAndProgressKeepsHomeAndSettingsReachable() {
+        val routineName = "Home return routine UI Test"
+        val exerciseNames = listOf("Bench Press", "Barbell Curl")
+        val routineId = runBlocking {
+            val exercises = repository.observeExercises().first()
+            val id = repository.saveRoutine(name = routineName)
+            exerciseNames.forEach { name ->
+                repository.addRoutineExercise(id, exercises.single { it.name == name }.id)
+            }
+            id
+        }
+
+        // Enter directly from Home: visiting another tab first changes the saved-stack setup.
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex))
+            .performScrollToNode(hasText(text(R.string.home_routines), substring = false))
+        compose.onNodeWithText(text(R.string.home_routines)).assertIsDisplayed().performClick()
+        waitForText(text(R.string.routines_title))
+        compose.onNodeWithTag("routine_start_$routineId").performScrollTo().assertIsDisplayed().performClick()
+        waitForText(text(R.string.workout_name))
+        waitForRepository {
+            repository.observeWorkouts().first().singleOrNull()?.workout?.name == routineName
+        }
+        val activeBefore = runBlocking { repository.observeWorkouts().first().single() }
+        assertEquals(exerciseNames, activeBefore.sortedExercises.map { it.exercise.name })
+        assertTrue(activeBefore.workout.endTime == null)
+
+        navigate(R.string.history)
+        waitForText(text(R.string.history_empty_title))
+        compose.onNodeWithText(text(R.string.history_subtitle)).assertIsDisplayed()
+        navigate(R.string.progress)
+        waitForText(text(R.string.progress_subtitle))
+        compose.onNodeWithText(text(R.string.progress_subtitle)).assertIsDisplayed()
+
+        repeat(3) {
+            navigate(R.string.home)
+            waitForText(text(R.string.home_subtitle))
+            compose.onNodeWithText(text(R.string.home_subtitle)).assertIsDisplayed()
+            compose.onNode(hasText(text(R.string.home), substring = false) and hasClickAction()).assertIsSelected()
+            compose.onNodeWithContentDescription(text(R.string.overview_settings)).assertIsDisplayed()
+        }
+        compose.onNodeWithContentDescription(text(R.string.overview_settings)).performClick()
+        waitForText(text(R.string.settings_subtitle))
+        compose.onNodeWithText(text(R.string.settings_subtitle)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.back)).performClick()
+        waitForText(text(R.string.home_subtitle))
+        compose.onNodeWithContentDescription(text(R.string.overview_settings)).assertIsDisplayed()
+
+        val activeAfter = runBlocking { repository.observeWorkouts().first().single() }
+        assertEquals(activeBefore, activeAfter)
+        navigate(R.string.workout)
+        waitForText(text(R.string.workout_name))
+        compose.onNodeWithText(routineName, substring = false).assertIsDisplayed()
+        assertEquals(activeBefore.workout.id, runBlocking {
+            repository.observeWorkouts().first().single { it.workout.endTime == null }.workout.id
         })
     }
 

@@ -131,6 +131,7 @@ internal val destinations = listOf(
     RestoreNavigation(backupState.restoreGeneration) { nav ->
     val navigationEntry by nav.currentBackStackEntryAsState()
     val mainDestination = destinations.any { it.route == navigationEntry?.destination?.route }
+    val persistentTabBar = rememberPersistentTabBarState(if (state.ready) navigationEntry?.destination?.route else null)
     LaunchedEffect(appErrors, nav) { appErrors.collect { event -> when(event) {
         is AppEvent.Message -> scope.launch { snackbar.showSnackbar(event.value) }
         else -> {
@@ -145,9 +146,7 @@ internal val destinations = listOf(
         }
     } } }
     fun openTab(destination: String) {
-        val source = nav.currentBackStackEntry ?: return
-        if(!nav.canActFrom(source) || source.destination.route == destination) return
-        nav.navigate(destination) { popUpTo(nav.graph.startDestinationId) { saveState = true }; launchSingleTop = true; restoreState = true }
+        nav.openMainTab(destination)
     }
     fun openChild(source: NavBackStackEntry, destination: String) {
         if(nav.canActFrom(source)) nav.navigate(destination) { launchSingleTop = true }
@@ -157,19 +156,20 @@ internal val destinations = listOf(
             Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize(),contentAlignment = Alignment.TopCenter) {
                 if(!state.ready) {
                     Column(Modifier.align(Alignment.Center),horizontalAlignment = Alignment.CenterHorizontally,verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(); Text(stringResource(R.string.loading)) }
-                } else NavHost(navController = nav,startDestination = "home",modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth().testTag("forge_navigation_host"),
+                } else CompositionLocalProvider(LocalPersistentTabBar provides persistentTabBar) {
+                NavHost(navController = nav,startDestination = "home",modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth().testTag("forge_navigation_host"),
                     enterTransition = { fadeIn(tween(300)) }, exitTransition = { fadeOut(tween(300)) },
                     popEnterTransition = { fadeIn(tween(300)) }, popExitTransition = { fadeOut(tween(300)) },
                     // Predictive Back has separate defaults; use Forge's fades instead of screen scaling.
                     predictivePopEnterTransition = { _ -> fadeIn(tween(300)) },
                     predictivePopExitTransition = { _ -> fadeOut(tween(300)) }) {
                     composable("home") { backStack ->
-                        MainTab("home", ::openTab, snackbar) {
+                        MainTab("home", snackbar) {
                             HomeScreen(state.workouts,state.activeWorkout,state.preferences.weightUnit,{ appViewModel.start() },{ openTab("workout") },{ openTab("history") },{ openChild(backStack,"exercises") },{ openChild(backStack,"routines") },{ openChild(backStack,"settings") })
                         }
                     }
                     composable("workout") { backStack ->
-                        MainTab("workout", ::openTab, snackbar) {
+                        MainTab("workout", snackbar) {
                         WorkoutScreen(state.activeWorkout,state.workouts,state.preferences,workoutViewModel,false,{ appViewModel.start() },{ openChild(backStack,"routines") },{
                             state.activeWorkout?.let { openChild(backStack,"picker/${it.workout.id}") }
                         },{
@@ -189,7 +189,7 @@ internal val destinations = listOf(
                         val diaryBusy by diaryMutationViewModel.busy.collectAsStateWithLifecycle()
                         val diaryResult by diaryMutationViewModel.result.collectAsStateWithLifecycle()
                         val diaryFeedbackResult = diaryResult
-                        MainTab("nutrition", ::openTab, snackbar) {
+                        MainTab("nutrition", snackbar) {
                             NutritionScreen(dashboard, onDay = foodLogViewModel::selectDay,
                                 onCatalog = { openChild(backStack,"nutrition/catalog") },
                                 onAddFood = { meal ->
@@ -216,8 +216,8 @@ internal val destinations = listOf(
                     nutritionDiaryChildren(nav, application, diaryMutationViewModel, foodLogViewModel)
                     nutritionEnergyChildren(nav, application, nutritionEnergyWriter, state.preferences.weightUnit)
                     composable("exercises") { backStack -> ExerciseLibraryScreen(state.exercises,libraryViewModel,onBack = { nav.popFrom(backStack) }) }
-                    composable("history") { backStack -> MainTab("history", ::openTab, snackbar) { HistoryScreen(state.workouts,state.preferences.weightUnit,historyViewModel) { openChild(backStack,"detail/$it") } } }
-                    composable("progress") { MainTab("progress", ::openTab, snackbar) { ProgressScreen(state.exercises,state.workouts,state.preferences.weightUnit,progressViewModel) } }
+                    composable("history") { backStack -> MainTab("history", snackbar) { HistoryScreen(state.workouts,state.preferences.weightUnit,historyViewModel) { openChild(backStack,"detail/$it") } } }
+                    composable("progress") { MainTab("progress", snackbar) { ProgressScreen(state.exercises,state.workouts,state.preferences.weightUnit,progressViewModel) } }
                     composable("routines") { backStack -> RoutinesScreen(state.routines,state.exercises,routineViewModel,libraryViewModel,{ appViewModel.start(routineId = it) },{ nav.popFrom(backStack) }) }
                     composable("settings") { backStack -> SettingsScreen(state.preferences,{ nav.popFrom(backStack) },appViewModel::setTheme,appViewModel::setUnit,appViewModel::setRest,appViewModel::setConfirmation,
                         backupState,backupViewModel::writeBackup,backupViewModel::readBackup,backupViewModel::confirmRestore,backupViewModel::cancelRestore) }
@@ -249,25 +249,13 @@ internal val destinations = listOf(
                         }
                     }
                 }
+                }
+                PersistentTabBar(persistentTabBar, ::openTab, canOpenTab = {
+                    val source = nav.currentBackStackEntry
+                    source != null && destinations.any { it.route == source.destination.route } && nav.canActFrom(source)
+                }, modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 840.dp).fillMaxWidth())
             }
         }
     }
 }
-}
-
-@Composable private fun MainTab(route: String, onOpenTab: (String) -> Unit, snackbar: SnackbarHostState, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            content()
-            // Feedback occupies screen content, leaving the tab bar available after restore.
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
-        }
-        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow, windowInsets = WindowInsets(0, 0, 0, 0)) {
-            destinations.forEach { destination ->
-                NavigationBarItem(selected = route == destination.route, onClick = { onOpenTab(destination.route) },
-                    icon = { Icon(destination.icon, stringResource(destination.label)) },
-                    label = { Text(stringResource(destination.label), maxLines = 1) })
-            }
-        }
-    }
 }

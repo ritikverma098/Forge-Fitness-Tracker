@@ -31,6 +31,8 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.Density
@@ -153,6 +155,20 @@ class WorkoutPerformanceHostTest {
             assertEquals("New/re-entering cards must not start width-dependent subcompositions for every set", 0,
                 trace.count("BoxWithConstraints"))
         }
+    }
+
+    @Test fun `large exercise composes only visible sets and retains a draft when its row leaves the viewport`() {
+        showWorkout(editing = true, setCount = 40)
+        assertTrue("An exercise must not eagerly compose all forty editable rows", trace.count("SetRow") < 40)
+        compose.onNodeWithTag("numeric_1000_WEIGHT").performTextReplacement("-")
+        compose.onNodeWithTag("numeric_1000_REPS").performImeAction()
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasTestTag("workout_set_1039"))
+        compose.onNodeWithTag("numeric_1039_WEIGHT").assertIsDisplayed()
+        compose.onNodeWithTag("workout_exercise_list")
+            .performScrollToNode(hasTestTag("workout_set_1000"))
+        compose.onNodeWithTag("numeric_1000_WEIGHT").assertTextEquals("-")
+        assertEquals(60.0, repository.detail.exercises.first().sets.first().weight, .000001)
     }
 
     @Test fun `shared width decision preserves breakpoint geometry and draft through resize font and theme changes`() {

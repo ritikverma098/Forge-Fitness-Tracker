@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import com.forge.workout.ui.navigation.canActFrom
 import com.forge.workout.ui.navigation.popFrom
+import com.forge.workout.ui.navigation.openMainTab
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,6 +47,10 @@ class NavigationActionsHostTest {
             composable("home") {}
             composable("detail") {}
             composable("editor") {}
+            composable("workout") {}
+            composable("history") {}
+            composable("progress") {}
+            composable("routines") {}
         }
         home = controller.currentBackStackEntry!!
         settle(home)
@@ -139,6 +144,24 @@ class NavigationActionsHostTest {
         assertTrue(controller.canActFrom(detail))
         assertTrue(controller.popFrom(detail))
         assertEquals(home.id, controller.currentBackStackEntry!!.id)
+    }
+
+    @Test fun `Home remains Home after starting a routine and switching tabs`() {
+        navigateAndSettle("routines")
+        val outgoing = controller.currentBackStackEntry!!
+        // Match AppEvent.OpenWorkout, which removes the routine's child stack.
+        controller.navigate("workout") { launchSingleTop = true; popUpTo("home") }
+        settle(outgoing, controller.currentBackStackEntry!!)
+        listOf("history", "progress", "home", "workout", "home").forEach { route ->
+            val previous = controller.currentBackStackEntry!!
+            controller.openMainTab(route)
+            settle(previous, controller.currentBackStackEntry!!)
+            assertEquals(route, controller.currentDestination!!.route)
+        }
+        val settings = navigateAndSettle("detail")
+        assertTrue(controller.popFrom(settings))
+        settle(settings, controller.currentBackStackEntry!!)
+        assertEquals("home", controller.currentDestination!!.route)
     }
 
     private fun navigateAndSettle(route: String): NavBackStackEntry {
