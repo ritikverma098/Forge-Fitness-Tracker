@@ -39,22 +39,32 @@ class AndroidFoodCatalogService(
 
     override suspend fun ensureBundled(): CatalogInstallResult = runInstall {
         val manifest = bundledManifest()
-        if (manifest != null) {
-            val installed = dao.catalogPack(manifest.pack.id)
-            if (installed?.copy(installedAt = manifest.pack.installedAt) == manifest.pack &&
-                dao.catalogFoodCount(manifest.pack.id) == manifest.pack.foodCount) {
-                return@runInstall CatalogInstallResult(requireNotNull(installed), 0, 0, 0, true)
+        val installed = dao.catalogPack(manifest.pack.id)
+        if (installed != null) {
+            val bundledPayload = installed.sha256.equals(manifest.pack.sha256, ignoreCase = true)
+            // Initialization seeds the catalog; explicit imports choose its revision. Version
+            // labels have no ordering, and a different complete pack may have its own count.
+            // For this exact bundled payload, the manifest also exposes a damaged stored count.
+            if (installed.foodCount > 0 && dao.catalogFoodCount(installed.id) == installed.foodCount &&
+                (!bundledPayload || installed.foodCount == manifest.pack.foodCount)) {
+                return@runInstall CatalogInstallResult(installed, 0, 0, 0, true)
+            }
+            // The APK can repair its own payload, but cannot reconstruct a different import.
+            // Preserve that pack until the user explicitly imports its source again.
+            if (!bundledPayload) {
+                throw CatalogException(CatalogIssue.INVALID_PACK,
+                    "The installed catalog is incomplete. Import its .forgefoods file again from a trusted source.")
             }
         }
         installer.install(context.assets.open(bundledAsset), onProgress = ::progress)
     }
 
-    private fun bundledManifest(): CatalogManifest? {
+    private fun bundledManifest(): CatalogManifest {
         // Only the trusted APK asset takes this fast path; external documents always get full validation.
         ZipInputStream(context.assets.open(bundledAsset).buffered()).use { zip ->
             val entry = zip.nextEntry
             if (entry == null || entry.name != "manifest.json" || entry.isDirectory) {
-                return null
+                throw CatalogException(CatalogIssue.INVALID_PACK, "Bundled catalog manifest is unavailable.")
             }
             val output = ByteArrayOutputStream()
             val buffer = ByteArray(4096)

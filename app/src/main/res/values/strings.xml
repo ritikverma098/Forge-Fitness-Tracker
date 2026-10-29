@@ -15,6 +15,7 @@
     <item quantity="other">%1$d sec</item>
   </plurals>
   <string name="failed_save_retry">A change could not be saved. Review your entries and try again.</string>
+  <string name="retry_failed_changes">Retry</string>
   <string name="workout_name_limit">Use a name from 1 to 100 characters.</string>
   <string name="notes_limit">Keep notes within 5,000 characters.</string>
   <string name="invalid_saved_inputs">Correct the highlighted fields before saving this session.</string>
@@ -60,7 +61,7 @@
   <string name="confirm_deletion">Confirm workout deletion</string>
   <string name="confirm_deletion_description">Ask before permanently deleting a workout.</string>
   <string name="about">About Forge</string>
-  <string name="about_description">Version 1.3.0\nYour training and nutrition, on your terms. Works offline. No account, ads, or analytics. Your data stays on your device.</string>
+  <string name="about_description">Version 1.3.1\nYour training and nutrition, on your terms. Works offline. No account, ads, or analytics. Your data stays on your device.</string>
   <string name="ready_to_train">Ready to train?</string>
   <string name="workout_empty_description">Build a session as you go, or start with a routine.</string>
   <string name="start_workout">Start workout</string>

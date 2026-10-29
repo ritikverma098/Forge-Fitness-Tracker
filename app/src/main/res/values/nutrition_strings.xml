@@ -34,7 +34,7 @@
     <string name="catalog_current_feedback">This catalog is already installed.</string>
     <string name="catalog_cancelled_feedback">Catalog operation cancelled.</string>
     <string name="catalog_failed_feedback">The catalog could not be installed. Your existing foods are unchanged.</string>
-    <string name="catalog_invalid_pack">This file is not a valid .forgefoods catalog pack.</string>
+    <string name="catalog_invalid_pack">This catalog pack is invalid or incomplete. Import a valid .forgefoods file from a trusted source.</string>
     <string name="catalog_unsupported_version">This catalog format requires a newer version of Forge.</string>
     <string name="catalog_hash_mismatch">The downloaded pack did not match the supplied SHA-256.</string>
     <string name="catalog_id_conflict">This pack conflicts with foods from another source.</string>

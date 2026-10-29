@@ -31,6 +31,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.forge.workout.ForgeApplication
 import com.forge.workout.R
+import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.backup.LocalBackupDocuments
 import com.forge.workout.utils.userMessage
 import com.forge.workout.ui.screens.home.HomeScreen
@@ -46,7 +47,10 @@ import com.forge.workout.ui.theme.ForgeTheme
 import com.forge.workout.viewmodel.*
 import com.forge.workout.preferences.ThemeMode
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.selects.select
 
 internal data class Destination(val route: String,val label: Int,val icon: ImageVector)
 internal val destinations = listOf(
@@ -92,8 +96,7 @@ internal val destinations = listOf(
                     true
                 }
             }, onRestored = {
-                workoutViewModel.clearAllValidity()
-                workoutViewModel.clearError()
+                workoutViewModel.resetAfterRestore()
                 libraryViewModel.clearError()
                 routineViewModel.clearError()
                 historyViewModel.clearFilters()
@@ -112,6 +115,7 @@ internal val destinations = listOf(
     } })
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
     val state by appViewModel.state.collectAsStateWithLifecycle()
+    val requestedWorkoutDeletions = remember(backupState.restoreGeneration) { mutableMapOf<Long, Pair<Set<Long>, Set<Long>>>() }
     val activity = LocalActivity.current as? ComponentActivity
     val dark = when(state.preferences.themeMode) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> isSystemInDarkTheme() }
     DisposableEffect(activity, dark) {
@@ -121,18 +125,40 @@ internal val destinations = listOf(
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val workoutError by workoutViewModel.error.collectAsStateWithLifecycle()
     val appErrors = remember(appViewModel) { appViewModel.events }
-    LaunchedEffect(workoutError) { workoutError?.let { snackbar.showSnackbar(it); workoutViewModel.clearError() } }
+    LaunchedEffect(workoutViewModel) {
+        // Re-publishing a blocked save must not cancel the action on an already visible snackbar.
+        workoutViewModel.errorNotice.collect { notice -> if (notice != null) {
+            val result = coroutineScope {
+                val showing = async { snackbar.showSnackbar(notice.message, actionLabel = application.getString(R.string.retry_failed_changes), withDismissAction = true) }
+                val resolved = async { workoutViewModel.awaitResolution(notice) }
+                try {
+                    select {
+                        showing.onAwait { it }
+                        resolved.onAwait { SnackbarResult.Dismissed }
+                    }
+                } finally {
+                    // Cancel only this snackbar request, including when it is queued behind another message.
+                    showing.cancel()
+                    resolved.cancel()
+                }
+            }
+            workoutViewModel.clearError(notice)
+            if (result == SnackbarResult.ActionPerformed) workoutViewModel.retryFailedChanges()
+        } }
+    }
     LaunchedEffect(backupViewModel) {
-        backupViewModel.events.collect { message -> scope.launch { snackbar.showSnackbar(application.getString(message)) } }
+        backupViewModel.events.collect { message ->
+            // The workout flush already presents this failure with its Retry action.
+            if (message != R.string.failed_save_retry) scope.launch { snackbar.showSnackbar(application.getString(message)) }
+        }
     }
     // Recreate the controller and its host together so the host binds the new lifecycle.
     RestoreNavigation(backupState.restoreGeneration) { nav ->
     val navigationEntry by nav.currentBackStackEntryAsState()
     val mainDestination = destinations.any { it.route == navigationEntry?.destination?.route }
     val persistentTabBar = rememberPersistentTabBarState(if (state.ready) navigationEntry?.destination?.route else null)
-    LaunchedEffect(appErrors, nav) { appErrors.collect { event -> when(event) {
+    LaunchedEffect(appErrors, nav, requestedWorkoutDeletions) { appErrors.collect { event -> when(event) {
         is AppEvent.Message -> scope.launch { snackbar.showSnackbar(event.value) }
         else -> {
             val generation = backupViewModel.state.value.restoreGeneration
@@ -140,7 +166,13 @@ internal val destinations = listOf(
             if(generation == backupViewModel.state.value.restoreGeneration) when(event) {
                 is AppEvent.OpenWorkout -> nav.navigate("workout") { launchSingleTop = true; popUpTo("home") }
                 is AppEvent.OpenSummary -> nav.navigate("summary/${event.id}") { popUpTo("home"); launchSingleTop = true }
-                AppEvent.GoHome -> nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
+                AppEvent.GoHome -> {
+                    requestedWorkoutDeletions.toMap().forEach { (id, entities) ->
+                        workoutViewModel.forgetDeletedWorkout(id, entities.first, entities.second)
+                    }
+                    requestedWorkoutDeletions.clear()
+                    nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
+                }
                 is AppEvent.Message -> Unit
             }
         }
@@ -150,6 +182,11 @@ internal val destinations = listOf(
     }
     fun openChild(source: NavBackStackEntry, destination: String) {
         if(nav.canActFrom(source)) nav.navigate(destination) { launchSingleTop = true }
+    }
+    fun deleteWorkout(detail: WorkoutDetail) {
+        requestedWorkoutDeletions[detail.workout.id] = detail.exercises.map { it.entry.id }.toSet() to
+            detail.exercises.flatMap { it.sets }.map { it.id }.toSet()
+        appViewModel.deleteWorkout(detail.workout.id)
     }
     ForgeTheme(state.preferences.themeMode) {
         Scaffold(snackbarHost = { if (!mainDestination) SnackbarHost(snackbar) }) { padding ->
@@ -173,11 +210,10 @@ internal val destinations = listOf(
                         WorkoutScreen(state.activeWorkout,state.workouts,state.preferences,workoutViewModel,false,{ appViewModel.start() },{ openChild(backStack,"routines") },{
                             state.activeWorkout?.let { openChild(backStack,"picker/${it.workout.id}") }
                         },{
-                            state.activeWorkout?.let { detail -> scope.launch { if(workoutViewModel.flush()) appViewModel.finish(detail.workout.id) else snackbar.showSnackbar(application.getString(R.string.failed_save_retry)) } }
+                            state.activeWorkout?.let { detail -> scope.launch { if(workoutViewModel.flush()) appViewModel.finish(detail.workout.id) } }
                         },{ state.activeWorkout?.let { detail -> scope.launch {
                             workoutViewModel.flush()
-                            workoutViewModel.clearWorkoutValidity(detail.workout.id)
-                            appViewModel.deleteWorkout(detail.workout.id)
+                            deleteWorkout(detail)
                         } } },{ nav.popFrom(backStack) },appViewModel::setRest, { openChild(backStack,"exercises") })
                         }
                     }
@@ -229,15 +265,14 @@ internal val destinations = listOf(
                     composable("editor/{id}",arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->
                         val id = backStack.arguments?.getLong("id") ?: return@composable
                         val detail = state.workouts.firstOrNull { it.workout.id == id }
-                        WorkoutScreen(detail,state.workouts,state.preferences,workoutViewModel,true,{},{},{ openChild(backStack,"picker/$id") },{ scope.launch { if(workoutViewModel.flush()) nav.popFrom(backStack) else snackbar.showSnackbar(application.getString(R.string.failed_save_retry)) } },{},{ nav.popFrom(backStack) },appViewModel::setRest)
+                        WorkoutScreen(detail,state.workouts,state.preferences,workoutViewModel,true,{},{},{ openChild(backStack,"picker/$id") },{ scope.launch { if(workoutViewModel.flush()) nav.popFrom(backStack) } },{},{ nav.popFrom(backStack) },appViewModel::setRest)
                     }
                     listOf("detail/{id}","summary/{id}").forEach { pattern ->
                         composable(pattern,arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->
                             val id = backStack.arguments?.getLong("id") ?: return@composable
                             WorkoutDetailScreen(state.workouts.firstOrNull { it.workout.id == id },state.workouts,state.preferences.weightUnit,pattern.startsWith("summary"),{ nav.popFrom(backStack) },{ openChild(backStack,"editor/$it") },{ appViewModel.start(repeatId = it) },{ workoutId -> scope.launch {
                                 workoutViewModel.flush()
-                                workoutViewModel.clearWorkoutValidity(workoutId)
-                                appViewModel.deleteWorkout(workoutId)
+                                state.workouts.firstOrNull { it.workout.id == workoutId }?.let(::deleteWorkout)
                             } },state.preferences.confirmDeletion, extraContent = {
                                 val energy: WorkoutEnergyViewModel = viewModel(key = "workout_energy_$id",
                                     factory = viewModelFactory { initializer { WorkoutEnergyViewModel(application.nutritionRepository, id) } })

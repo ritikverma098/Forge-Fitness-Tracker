@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -103,7 +104,7 @@ private fun quantityField(type: ExerciseType) = when(type) {
                 val field = quantityField(type)
                 val value = when(field) { SetField.DURATION -> set.duration.toDouble(); SetField.DISTANCE -> set.distance; else -> set.reps.toDouble() }
                 val maximum = when(field) { SetField.DURATION -> 604_800.0; SetField.DISTANCE -> 100_000.0; else -> 10_000.0 }
-                NumericField(set.id, field, value, quantityLabel(type), field != SetField.DISTANCE, unit.name,
+                NumericField(set.id, field, value, quantityLabel(type), field != SetField.DISTANCE, field.name,
                     maximum, set.completed, Modifier.weight(1f).focusRequester(quantityFocus), ImeAction.Done,
                     { focusManager.clearFocus() }, {
                         validQuantity = it; onValidityChange(field, it)
@@ -128,20 +129,31 @@ private fun quantityField(type: ExerciseType) = when(type) {
 @Composable private fun NumericField(id: Long, field: SetField, initial: Double, label: String, integer: Boolean,
     unitKey: String, maximum: Double, required: Boolean, modifier: Modifier, imeAction: ImeAction,
     onImeAction: () -> Unit, onValid: (Boolean) -> Unit, onValue: (Double) -> Unit) {
-    var input by rememberSaveable(id, field, unitKey, stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(if(initial == 0.0) "" else if(integer) initial.toInt().toString()
-            else BigDecimal.valueOf(initial).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()))
+    var draft by rememberSaveable(id, field, saver = numericInputSaver) {
+        mutableStateOf(initialNumericDraft(initial, integer, unitKey))
     }
+    // Keep the accepted value while its save is pending or failed. Unit changes
+    // format that exact value without feeding rounded presentation back into storage.
+    val presented = remember(draft, unitKey, initial, integer) { draft.presented(unitKey, initial, integer) }
+    val input = presented.input
     fun valid(text: String): Boolean {
         val parsed = text.replace(',', '.').toDoubleOrNull()
         return if(text.isEmpty()) !required else parsed != null && parsed.isFinite() && parsed >= 0 && parsed <= maximum &&
             (!required || parsed > 0) && (!integer || parsed % 1.0 == 0.0)
     }
     val isValid = valid(input.text)
+    LaunchedEffect(id, field, required) {
+        // Unchecking Done can make a previously rejected zero/blank valid without
+        // another text edit. Persist it before the old quantity can be reused.
+        if (field != SetField.WEIGHT && !required && isValid && initial != 0.0 &&
+            (input.text.replace(',', '.').toDoubleOrNull() ?: 0.0) == 0.0) onValue(0.0)
+    }
     LaunchedEffect(isValid) { onValid(isValid) }
     BasicTextField(value = input, onValueChange = {
-        val changed = input.text != it.text
-        input = it
+        val current = draft.presented(unitKey, initial, integer)
+        val changed = current.input.text != it.text
+        draft = current.copy(input = it, canonicalWeightKg =
+            if (changed) canonicalWeight(it.text, unitKey) else current.canonicalWeightKg)
         if(changed) {
             val accepted = valid(it.text)
             onValid(accepted)
@@ -149,7 +161,10 @@ private fun quantityField(type: ExerciseType) = when(type) {
         }
     }, modifier = modifier.heightIn(min = 48.dp).testTag("numeric_${id}_${field.name}")
         .semantics { contentDescription = label }
-        .onFocusChanged { if(it.isFocused) input = input.copy(selection = TextRange(0, input.text.length)) }
+        .onFocusChanged { if(it.isFocused) {
+            val current = draft.presented(unitKey, initial, integer)
+            draft = current.copy(input = current.input.copy(selection = TextRange(0, current.input.text.length)))
+        } }
         .background(if(isValid) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(10.dp))
         .padding(horizontal = 6.dp, vertical = 10.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
@@ -161,3 +176,50 @@ private fun quantityField(type: ExerciseType) = when(type) {
             inner()
         } })
 }
+
+private data class NumericInputDraft(val input: TextFieldValue, val unitKey: String, val canonicalWeightKg: Double?) {
+    fun presented(nextUnitKey: String, initial: Double, integer: Boolean): NumericInputDraft {
+        if (unitKey == nextUnitKey) return this
+        val nextUnit = WeightUnit.entries.firstOrNull { it.name == nextUnitKey }
+        if (nextUnit == null || canonicalWeightKg == null) return initialNumericDraft(initial, integer, nextUnitKey)
+        val text = if (input.text.isEmpty()) "" else numericText(nextUnit.fromKg(canonicalWeightKg), integer = false)
+        return NumericInputDraft(TextFieldValue(text), nextUnitKey, canonicalWeightKg)
+    }
+}
+
+private fun numericText(value: Double, integer: Boolean): String = if (integer) value.toInt().toString()
+    else BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+private fun initialNumericDraft(initial: Double, integer: Boolean, unitKey: String): NumericInputDraft = NumericInputDraft(
+    TextFieldValue(if (initial == 0.0) "" else numericText(initial, integer)), unitKey,
+    WeightUnit.entries.firstOrNull { it.name == unitKey }?.toKg(initial),
+)
+
+private fun canonicalWeight(text: String, unitKey: String): Double? {
+    val unit = WeightUnit.entries.firstOrNull { it.name == unitKey } ?: return null
+    if (text.isEmpty()) return 0.0
+    val parsed = text.replace(',', '.').toDoubleOrNull() ?: return null
+    return if (parsed.isFinite() && parsed in 0.0..unit.fromKg(10_000.0)) unit.toKg(parsed) else null
+}
+
+// Keep the unrounded anchor through focus changes, saved tabs and repeated unit
+// conversions. Legacy unit/text payloads derive their anchor from valid source text.
+private val numericInputSaver = Saver<MutableState<NumericInputDraft>, Any>(
+    save = { state ->
+        val draft = state.value
+        with(TextFieldValue.Saver) { save(draft.input) }
+            ?.let { arrayListOf(draft.unitKey, it, draft.canonicalWeightKg) }
+    },
+    restore = { saved ->
+        val payload = if (saved is State<*>) saved.value else saved
+        (payload as? List<*>)?.let { values ->
+            val unit = values.getOrNull(0) as? String
+            val input = values.getOrNull(1)?.let { runCatching { TextFieldValue.Saver.restore(it) }.getOrNull() }
+            if (unit == null || input == null) null else {
+                val parsed = canonicalWeight(input.text, unit)
+                val anchor = (values.getOrNull(2) as? Double)?.takeIf { parsed != null && it.isFinite() && it in 0.0..10_000.0 }
+                mutableStateOf(NumericInputDraft(input, unit, anchor ?: parsed))
+            }
+        }
+    },
+)

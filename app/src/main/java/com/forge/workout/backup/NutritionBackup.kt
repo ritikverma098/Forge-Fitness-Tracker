@@ -82,6 +82,6 @@ object NutritionBackupValidation {
         require(values.distinct().size == values.size) { "Duplicate nutrition ID." }
     }
     private fun uniqueLongs(values: List<Long>) {
-        require(values.all { it > 0 } && values.distinct().size == values.size) { "Invalid or duplicate nutrition row ID." }
+        require(values.all { it in 1..BackupValidation.MAX_ROW_ID } && values.distinct().size == values.size) { "Invalid, unsupported or duplicate nutrition row ID." }
     }
 }

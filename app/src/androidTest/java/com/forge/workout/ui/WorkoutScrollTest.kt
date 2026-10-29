@@ -4,6 +4,7 @@ import android.os.SystemClock
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.swipeDown
@@ -160,6 +162,20 @@ class WorkoutScrollTest {
         compose.onNodeWithTag("workout_elapsed_time").assertIsDisplayed()
         assertNotEquals(initialElapsed, clockText("workout_elapsed_time"))
         assertStickyTimer()
+    }
+
+    @Test fun uncheckingCompletedSetPersistsClearedReps() {
+        val original = createLargeWorkout()
+        val set = original.sortedExercises.first().sortedSets.first()
+        runBlocking { repository.updateSet(set.copy(completed = true)) }
+        waitForText(text(R.string.home_resume_workout))
+        compose.onNodeWithText(text(R.string.home_resume_workout)).performClick()
+        scrollToSet(set.id)
+        compose.onNodeWithTag(numericTag(set.id, SetField.REPS)).performTextClearance()
+        compose.onNodeWithTag(numericTag(set.id, SetField.REPS)).performImeAction()
+        compose.onNodeWithTag("set_done_${set.id}").assertIsOn().performClick()
+        awaitRepository { savedSet(set.id).let { !it.completed && it.reps == 0 } }
+        compose.onNodeWithTag("set_done_${set.id}").assertIsNotEnabled()
     }
 
     private fun createLargeWorkout(): WorkoutDetail = runBlocking {

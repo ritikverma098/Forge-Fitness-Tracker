@@ -393,6 +393,7 @@ class RestTimerCoordinatorTest {
         override suspend fun workout(id: Long): com.forge.workout.model.Workout? = error("Unused")
         override suspend fun workoutSet(id: Long): WorkoutSet? = error("Unused")
         override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> = error("Unused")
+        override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean = error("Unused")
         override suspend fun ensureSeeded() = error("Unused")
         override suspend fun saveExercise(exercise: Exercise): Long = error("Unused")
         override suspend fun deleteExercise(id: Long) = error("Unused")

@@ -70,6 +70,7 @@ class RoomBackupRepository(
             dao.deleteBackupRoutines()
             dao.deleteBackupExercises()
             dao.deleteBackupMetadata()
+            rebaseRestoredRowIds(nutrition != null)
             stable.exercises.forEach { dao.insertExercise(it) }
             stable.workouts.forEach { dao.insertWorkout(it) }
             stable.routines.forEach { dao.insertRoutine(it) }
@@ -97,6 +98,18 @@ class RoomBackupRepository(
                 nutritionDao.insertBackupWorkoutEnergy(nutrition.workoutEnergy)
             }
             beforeCommit()
+        }
+    }
+
+    private fun rebaseRestoredRowIds(includeNutrition: Boolean) {
+        // Deleting rows does not reset AUTOINCREMENT. Repair old imported high-water
+        // marks in the same transaction; retained reference rows still set the floor.
+        val tables = listOf("exercises", "workouts", "workout_exercises", "workout_sets", "routines", "routine_exercises") +
+            if (includeNutrition) listOf("nutrition_diary", "nutrition_body_weights", "nutrition_recipe_ingredients", "nutrition_foods") else emptyList()
+        val connection = database.openHelper.writableDatabase
+        for (table in tables) {
+            connection.execSQL("DELETE FROM sqlite_sequence WHERE name = ?", arrayOf(table))
+            connection.execSQL("INSERT INTO sqlite_sequence(name, seq) SELECT ?, COALESCE(MAX(rowid), 0) FROM `$table`", arrayOf(table))
         }
     }
 }

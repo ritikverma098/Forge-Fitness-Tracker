@@ -145,6 +145,8 @@ class BackupCodecTest {
 
     @Test fun `orphan references duplicate IDs names and malformed ordering are rejected`() {
         val base = completeBackup()
+        // SQLite NOCASE folds ASCII; non-ASCII case variants can be distinct stored names.
+        val duplicateName = base.exercises[0].name.map { if (it in 'A'..'Z') it + ('a' - 'A') else it }.joinToString("")
         val invalid = listOf(
             base.copy(exercises = base.exercises + base.exercises.first()),
             base.copy(workouts = base.workouts + base.workouts.first()),
@@ -153,7 +155,7 @@ class BackupCodecTest {
             base.copy(routines = base.routines + base.routines.first()),
             base.copy(routineExercises = base.routineExercises + base.routineExercises.first()),
             base.copy(exercises = base.exercises.mapIndexed { index, value -> if (index == 0) value.copy(id = 0) else value }),
-            base.copy(exercises = base.exercises.mapIndexed { index, value -> if (index == 1) value.copy(name = base.exercises[0].name.lowercase()) else value }),
+            base.copy(exercises = base.exercises.mapIndexed { index, value -> if (index == 1) value.copy(name = duplicateName) else value }),
             base.copy(workoutExercises = base.workoutExercises.mapIndexed { index, value -> if (index == 0) value.copy(workoutId = 999) else value }),
             base.copy(workoutExercises = base.workoutExercises.mapIndexed { index, value -> if (index == 0) value.copy(exerciseId = 999) else value }),
             base.copy(routineExercises = base.routineExercises.mapIndexed { index, value -> if (index == 0) value.copy(routineId = 999) else value }),

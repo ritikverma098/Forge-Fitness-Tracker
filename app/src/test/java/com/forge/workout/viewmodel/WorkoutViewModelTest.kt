@@ -15,12 +15,15 @@ import com.forge.workout.repository.WorkoutRepository
 import com.forge.workout.utils.WorkoutValidation
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -28,6 +31,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -342,6 +346,351 @@ class WorkoutViewModelTest {
         assertTrue(repository.savedSets.isEmpty())
     }
 
+    @Test fun `persistent failure blocks every flush and unrelated success until explicit retry succeeds`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failSaves = true
+        viewModel.setValue(20, SetField.WEIGHT, 80.0)
+        assertFalse(viewModel.flush())
+        val first = viewModel.errorNotice.value!!
+        val resolution = async(start = CoroutineStart.UNDISPATCHED) { viewModel.awaitResolution(first) }
+        viewModel.clearError()
+        assertFalse(viewModel.flush())
+        assertFalse(resolution.isCompleted)
+        assertEquals(1, repository.attempts["set"])
+        assertTrue(viewModel.errorNotice.value!!.id > first.id)
+
+        repository.failSaves = false
+        viewModel.setValue(20, SetField.REPS, 12.0)
+        viewModel.setType(20, SetType.DROP_SET)
+        assertFalse(viewModel.flush())
+        assertFalse(resolution.isCompleted)
+        assertEquals(60.0, repository.sets.single().weight, 0.000001)
+        assertEquals(12, repository.sets.single().reps)
+
+        repository.failSaves = true
+        viewModel.retryFailedChanges()
+        advanceUntilIdle()
+        val repeated = viewModel.errorNotice.value!!
+        viewModel.clearError(first)
+        assertSame(repeated, viewModel.errorNotice.value)
+        viewModel.clearError(repeated.copy())
+        assertSame(repeated, viewModel.errorNotice.value)
+        assertEquals(first.message, repeated.message)
+        assertTrue(repeated.id > first.id)
+        assertFalse(viewModel.flush())
+
+        repository.failSaves = false
+        viewModel.retryFailedChanges()
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        resolution.await()
+        assertEquals(80.0, repository.sets.single().weight, 0.000001)
+        assertEquals(12, repository.sets.single().reps)
+        assertEquals(SetType.DROP_SET, repository.sets.single().setType)
+        assertEquals(3, repository.savedSets.size)
+        assertEquals(5, repository.attempts["set"])
+        assertNull(viewModel.error.value)
+    }
+
+    @Test fun `corrected same field resolves its failure even before the first flush`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failNextSave = true
+        viewModel.setValue(20, SetField.WEIGHT, 80.0)
+        viewModel.setValue(20, SetField.WEIGHT, 82.5)
+        assertTrue(viewModel.flush())
+        assertEquals(82.5, repository.sets.single().weight, 0.000001)
+        assertEquals(1, repository.savedSets.size)
+        assertNull(viewModel.error.value)
+    }
+
+    @Test fun `different invalid fields stay unresolved until both have successful corrections`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.setValue(20, SetField.WEIGHT, -1.0)
+        viewModel.setValue(20, SetField.REPS, 10.9)
+        assertFalse(viewModel.flush())
+        viewModel.clearError()
+        viewModel.clearAllValidity()
+        viewModel.clearWorkoutValidity(1)
+        assertFalse(viewModel.flush())
+        viewModel.setValue(20, SetField.WEIGHT, 82.5)
+        assertFalse(viewModel.flush())
+        viewModel.setValue(20, SetField.REPS, 12.0)
+        assertTrue(viewModel.flush())
+        assertEquals(82.5, repository.sets.single().weight, 0.000001)
+        assertEquals(12, repository.sets.single().reps)
+    }
+
+    @Test fun `retrying multiple failed fields merges fresh values without replaying successful edits`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failures["set"] = 2
+        viewModel.setValue(20, SetField.WEIGHT, 80.0)
+        viewModel.setValue(20, SetField.REPS, 12.0)
+        viewModel.setType(20, SetType.FAILURE)
+        assertFalse(viewModel.flush())
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(80.0, repository.sets.single().weight, 0.000001)
+        assertEquals(12, repository.sets.single().reps)
+        assertEquals(SetType.FAILURE, repository.sets.single().setType)
+        assertEquals(listOf(60.0, 80.0, 80.0), repository.savedSets.map { it.weight })
+        assertEquals(5, repository.attempts["set"])
+    }
+
+    @Test fun `newer queued field intent supersedes old retry in either queue order`() = runTest {
+        listOf(true, false).forEach { retryFirst ->
+            val repository = FakeRepository()
+            val viewModel = viewModel(repository)
+            repository.failNextSave = true
+            viewModel.setValue(20, SetField.WEIGHT, 80.0)
+            assertFalse(viewModel.flush())
+            if (retryFirst) viewModel.retryFailedChanges()
+            viewModel.setValue(20, SetField.WEIGHT, 90.0)
+            if (!retryFirst) viewModel.retryFailedChanges()
+            assertTrue(viewModel.flush())
+            assertEquals(listOf(90.0), repository.savedSets.map { it.weight })
+            assertEquals(2, repository.attempts["set"])
+        }
+    }
+
+    @Test fun `distinct failed additions retry once each and successful additions never replay`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failures["addSet"] = 2
+        viewModel.addSet(10)
+        viewModel.addSet(10)
+        viewModel.addSet(10)
+        assertFalse(viewModel.flush())
+        assertEquals(2, repository.sets.size)
+        assertFalse(viewModel.flush())
+        assertEquals(3, repository.attempts["addSet"])
+        viewModel.retryFailedChanges()
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(4, repository.sets.size)
+        assertEquals(5, repository.attempts["addSet"])
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(4, repository.sets.size)
+    }
+
+    @Test fun `failed relative adjustment retries against current timer without duplicating successful tap`() = runTest {
+        val repository = FakeRepository(restEndTime = 100_000L)
+        val viewModel = viewModel(repository) { 10_000L }
+        repository.failures["rest"] = 1
+        viewModel.adjustRest(1, 15)
+        viewModel.adjustRest(1, 15)
+        assertFalse(viewModel.flush())
+        assertEquals(115_000L, repository.detail.workout.restEndTime)
+        viewModel.retryFailedChanges()
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(130_000L, repository.detail.workout.restEndTime)
+        assertEquals(listOf(115_000L, 130_000L), repository.savedRestDeadlines)
+        assertEquals(3, repository.attempts["rest"])
+    }
+
+    @Test fun `failed adjustment cannot alter a replacement timer or a new completion timer`() = runTest {
+        listOf(true, false).forEach { completeAnotherSet ->
+            val repository = FakeRepository(restEndTime = 100_000L)
+            val viewModel = viewModel(repository) { 10_000L }
+            repository.failures["rest"] = 1
+            viewModel.adjustRest(1, 15)
+            assertFalse(viewModel.flush())
+            if (completeAnotherSet) viewModel.completeSet(20, true, 1, 60, editing = false)
+            else viewModel.rest(1, 200_000L)
+            viewModel.retryFailedChanges()
+            assertTrue(viewModel.flush())
+            val expected = if (completeAnotherSet) 70_000L else 200_000L
+            assertEquals(expected, repository.detail.workout.restEndTime)
+            assertEquals(listOf(expected), repository.savedRestDeadlines)
+            assertEquals(2, repository.attempts["rest"])
+        }
+    }
+
+    @Test fun `successful same exercise selection resolves failed membership while other exercises stay independent`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failures["addExercise"] = 1
+        viewModel.addExercise(1, 101)
+        assertFalse(viewModel.flush())
+        viewModel.addExercise(1, 102)
+        assertFalse(viewModel.flush())
+        viewModel.addExercise(1, 101)
+        assertTrue(viewModel.flush())
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(setOf(100L, 101L, 102L), repository.detail.exercises.map { it.exercise.id }.toSet())
+        assertEquals(3, repository.attempts["addExercise"])
+    }
+
+    @Test fun `an existing exercise selection succeeds without creating a permanent retry failure`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.addExercise(1, 100)
+        viewModel.addExercise(1, 100)
+        assertTrue(viewModel.flush())
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(1, repository.detail.exercises.size)
+        assertNull(repository.attempts["addExercise"])
+        assertNull(viewModel.error.value)
+        assertEquals(0, repository.graphReads)
+    }
+
+    @Test fun `failed reconciliation reads preserve the original failed addition until it can retry`() = runTest {
+        val repository = FakeRepository()
+        var reads = 0
+        val interrupted = object : WorkoutRepository by repository {
+            override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean {
+                if (++reads == 2) throw IOException("Membership read failed")
+                return repository.hasWorkoutExercise(workoutId, exerciseId)
+            }
+        }
+        val viewModel = WorkoutViewModel(interrupted, { it.message.orEmpty() })
+        repository.failures["addExercise"] = 1
+        viewModel.addExercise(1, 101)
+        assertFalse(viewModel.flush())
+        assertEquals("Storage temporarily unavailable", viewModel.error.value)
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(setOf(100L, 101L), repository.detail.exercises.map { it.exercise.id }.toSet())
+        assertEquals(2, repository.attempts["addExercise"])
+        assertEquals(0, repository.graphReads)
+    }
+
+    @Test fun `partial completion retry only writes original timer deadline and preserves later field edits`() = runTest {
+        var now = 10_000L
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository) { now }
+        repository.failures["rest"] = 1
+        viewModel.completeSet(20, true, 1, 90, editing = false)
+        assertFalse(viewModel.flush())
+        assertTrue(repository.sets.single().completed)
+        assertEquals(1, repository.savedSets.size)
+        now = 20_000L
+        viewModel.setValue(20, SetField.WEIGHT, 82.5)
+        viewModel.retryFailedChanges()
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(82.5, repository.sets.single().weight, 0.000001)
+        assertEquals(2, repository.savedSets.size)
+        assertEquals(listOf(100_000L), repository.savedRestDeadlines)
+        assertEquals(2, repository.attempts["rest"])
+    }
+
+    @Test fun `newer completion or timer skip defeats partial completion retry`() = runTest {
+        listOf(true, false).forEach { changeCompletion ->
+            val repository = FakeRepository()
+            val viewModel = viewModel(repository) { 10_000L }
+            repository.failures["rest"] = 1
+            viewModel.completeSet(20, true, 1, 90, editing = false)
+            assertFalse(viewModel.flush())
+            viewModel.retryFailedChanges()
+            if (changeCompletion) viewModel.completeSet(20, false, 1, 90, editing = false)
+            else viewModel.rest(1, null)
+            assertTrue(viewModel.flush())
+            assertNull(repository.detail.workout.restEndTime)
+            assertEquals(!changeCompletion, repository.sets.single().completed)
+            assertEquals(if (changeCompletion) 2 else 1, repository.savedSets.size)
+            assertEquals(if (changeCompletion) emptyList<Long?>() else listOf<Long?>(null), repository.savedRestDeadlines)
+        }
+    }
+
+    @Test fun `deleting one set clears only its failures and failed delete remains retryable`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.addSet(10)
+        assertTrue(viewModel.flush())
+        viewModel.setValue(20, SetField.WEIGHT, -1.0)
+        viewModel.setValue(21, SetField.REPS, -1.0)
+        repository.failures["deleteSet"] = 1
+        viewModel.deleteSet(20)
+        assertFalse(viewModel.flush())
+        assertEquals(2, repository.sets.size)
+        viewModel.retryFailedChanges()
+        assertFalse(viewModel.flush())
+        assertEquals(listOf(21L), repository.sets.map { it.id })
+        viewModel.setValue(21, SetField.REPS, 12.0)
+        assertTrue(viewModel.flush())
+        assertEquals(2, repository.attempts["deleteSet"])
+    }
+
+    @Test fun `successful exercise removal clears child failures without clearing workout failure`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.setValue(20, SetField.WEIGHT, -1.0)
+        viewModel.exerciseNotes(10, "x".repeat(5001))
+        viewModel.rename(1, "", "")
+        repository.failures["addSet"] = 1
+        repository.failures["removeExercise"] = 1
+        viewModel.addSet(10)
+        viewModel.removeExercise(10)
+        assertFalse(viewModel.flush())
+        assertEquals(1, repository.detail.exercises.size)
+        viewModel.removeExercise(10)
+        assertFalse(viewModel.flush())
+        assertTrue(repository.detail.exercises.isEmpty())
+        viewModel.rename(1, "Corrected", "")
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertEquals(1, repository.attempts["addSet"])
+        assertEquals(2, repository.attempts["removeExercise"])
+    }
+
+    @Test fun `discard cleanup waits for confirmed deletion and does not clear unrelated workout failures`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.setValue(20, SetField.WEIGHT, -1.0)
+        viewModel.rename(999, "", "")
+        viewModel.forgetDeletedWorkout(1, setOf(10), setOf(20))
+        assertFalse(viewModel.flush())
+        assertEquals(1, repository.sets.size)
+        repository.deleteWorkout(1)
+        viewModel.forgetDeletedWorkout(1, setOf(10), setOf(20))
+        assertFalse(viewModel.flush())
+        assertTrue(repository.sets.isEmpty())
+        viewModel.resetAfterRestore()
+        assertTrue(viewModel.flush())
+        assertNull(viewModel.error.value)
+    }
+
+    @Test fun `transient deletion confirmation failure remains retryable with all child IDs`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        viewModel.setValue(20, SetField.WEIGHT, -1.0)
+        viewModel.exerciseNotes(10, "x".repeat(5001))
+        viewModel.rename(1, "", "")
+        assertFalse(viewModel.flush())
+        repository.deleteWorkout(1)
+        repository.failures["workoutRead"] = 1
+        viewModel.forgetDeletedWorkout(1, setOf(10), setOf(20))
+        assertFalse(viewModel.flush())
+        viewModel.retryFailedChanges()
+        assertTrue(viewModel.flush())
+        assertNull(viewModel.error.value)
+        assertTrue(repository.sets.isEmpty())
+    }
+
+    @Test fun `restore reset invalidates pending retries and permits new edits with reused IDs`() = runTest {
+        val repository = FakeRepository()
+        val viewModel = viewModel(repository)
+        repository.failNextSave = true
+        viewModel.setValue(20, SetField.WEIGHT, 80.0)
+        assertFalse(viewModel.flush())
+        viewModel.inputValidity(1, "set_20_weight", false)
+        viewModel.retryFailedChanges()
+        viewModel.resetAfterRestore()
+        viewModel.setValue(20, SetField.WEIGHT, 90.0)
+        assertTrue(viewModel.flush())
+        assertEquals(listOf(90.0), repository.savedSets.map { it.weight })
+        assertTrue(viewModel.invalidInputs.value.isEmpty())
+        assertNull(viewModel.errorNotice.value)
+    }
+
     private class FakeRepository(historical: Boolean = false, restEndTime: Long? = null) : WorkoutRepository {
         private val exercise = Exercise(id = 100, name = "Bench Press", primaryMuscleGroup = MuscleGroup.CHEST)
         private val state = MutableStateFlow(listOf(WorkoutDetail(
@@ -354,26 +703,46 @@ class WorkoutViewModelTest {
             )),
         )))
         val detail: WorkoutDetail get() = state.value.single()
-        val sets: List<WorkoutSet> get() = detail.exercises.flatMap { it.sets }
+        val sets: List<WorkoutSet> get() = state.value.flatMap { it.exercises }.flatMap { it.sets }
         val savedSets = mutableListOf<WorkoutSet>()
         val savedRestDeadlines = mutableListOf<Long?>()
         val events = mutableListOf<String>()
         var failNextSave = false
+        var failSaves = false
+        val failures = mutableMapOf<String, Int>()
+        val attempts = mutableMapOf<String, Int>()
         var graphReads = 0
+
+        private fun before(operation: String) {
+            attempts[operation] = attempts.getOrDefault(operation, 0) + 1
+            if (failures.getOrDefault(operation, 0) > 0) {
+                failures[operation] = failures.getValue(operation) - 1
+                throw IOException("Storage temporarily unavailable")
+            }
+        }
 
         override fun observeExercises(): Flow<List<Exercise>> = flowOf(listOf(exercise))
         override fun observeExerciseUsage(): Flow<List<ExerciseUsage>> = flowOf(emptyList())
         override fun observeWorkouts(): Flow<List<WorkoutDetail>> { graphReads++; return state }
-        override suspend fun workout(id: Long): Workout? = detail.workout.takeIf { it.id == id }
+        override suspend fun workout(id: Long): Workout? {
+            before("workoutRead")
+            return state.value.firstOrNull { it.workout.id == id }?.workout
+        }
         override suspend fun workoutSet(id: Long): WorkoutSet? = sets.firstOrNull { it.id == id }
         override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> =
             detail.exercises.firstOrNull { it.entry.id == workoutExerciseId }?.sets.orEmpty()
+        override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean {
+            before("membershipRead")
+            return state.value.firstOrNull { it.workout.id == workoutId }?.exercises
+                ?.any { it.exercise.id == exerciseId } == true
+        }
         override fun observeRoutines(): Flow<List<RoutineDetail>> = flowOf(emptyList())
         override suspend fun ensureSeeded() = Unit
 
         override suspend fun updateSet(set: WorkoutSet) {
             delay(1)
-            if (failNextSave) {
+            before("set")
+            if (failNextSave || failSaves) {
                 failNextSave = false
                 throw IOException("Storage temporarily unavailable")
             }
@@ -387,22 +756,26 @@ class WorkoutViewModelTest {
         }
 
         override suspend fun addSet(workoutExerciseId: Long) {
+            before("addSet")
             val entry = detail.exercises.single { it.entry.id == workoutExerciseId }
-            val next = entry.sets.last().copy(id = 21, setNumber = entry.sets.size + 1, completed = false,
+            val next = entry.sets.last().copy(id = (sets.maxOfOrNull { it.id } ?: 20L) + 1, setNumber = entry.sets.size + 1, completed = false,
                 setType = SetType.WORKING)
-            state.value = listOf(detail.copy(exercises = listOf(entry.copy(sets = entry.sets + next))))
+            state.value = listOf(detail.copy(exercises = detail.exercises.map { if (it.entry.id == workoutExerciseId) it.copy(sets = it.sets + next) else it }))
         }
 
         override suspend fun deleteSet(id: Long) {
+            before("deleteSet")
             state.value = listOf(detail.copy(exercises = detail.exercises.map { it.copy(sets = it.sets.filterNot { set -> set.id == id }) }))
         }
 
         override suspend fun removeWorkoutExercise(id: Long) {
+            before("removeExercise")
             state.value = listOf(detail.copy(exercises = detail.exercises.filterNot { it.entry.id == id }))
         }
 
         override suspend fun setRestEndTime(workoutId: Long, endTime: Long?) {
             delay(1)
+            before("rest")
             check(workoutId == detail.workout.id)
             state.value = listOf(detail.copy(workout = detail.workout.copy(restEndTime = endTime)))
             savedRestDeadlines += endTime
@@ -420,7 +793,13 @@ class WorkoutViewModelTest {
             true
         }
 
-        override suspend fun updateWorkout(id: Long, name: String, notes: String) { error("Unused operation") }
+        override suspend fun updateWorkout(id: Long, name: String, notes: String) {
+            before("identity")
+            WorkoutValidation.validateName(name)
+            require(notes.length <= 5000)
+            check(id == detail.workout.id)
+            state.value = listOf(detail.copy(workout = detail.workout.copy(name = name, notes = notes)))
+        }
         override suspend fun updateMuscleGroups(id: Long, groups: Set<MuscleGroup>) {
             delay(1)
             check(id == detail.workout.id)
@@ -430,10 +809,23 @@ class WorkoutViewModelTest {
         override suspend fun deleteExercise(id: Long) { error("Unused operation") }
         override suspend fun startWorkout(name: String, routineId: Long?, repeatWorkoutId: Long?): Long = error("Unused operation")
         override suspend fun finishWorkout(id: Long) { error("Unused operation") }
-        override suspend fun deleteWorkout(id: Long) { error("Unused operation") }
-        override suspend fun addExercise(workoutId: Long, exerciseId: Long) { error("Unused operation") }
+        override suspend fun deleteWorkout(id: Long) { before("deleteWorkout"); state.value = state.value.filterNot { it.workout.id == id } }
+        override suspend fun addExercise(workoutId: Long, exerciseId: Long) {
+            before("addExercise")
+            check(detail.workout.id == workoutId)
+            require(detail.exercises.none { it.exercise.id == exerciseId }) { "This exercise is already in your workout." }
+            val entry = WorkoutExercise(id = detail.exercises.maxOf { it.entry.id } + 1, workoutId = workoutId,
+                exerciseId = exerciseId, orderIndex = detail.exercises.size)
+            val set = WorkoutSet(id = (sets.maxOfOrNull { it.id } ?: 20L) + 1, workoutExerciseId = entry.id, setNumber = 1)
+            val added = WorkoutExerciseDetail(entry, exercise.copy(id = exerciseId), listOf(set))
+            state.value = listOf(detail.copy(exercises = detail.exercises + added))
+        }
         override suspend fun moveWorkoutExercise(id: Long, delta: Int) { error("Unused operation") }
-        override suspend fun updateExerciseNotes(workoutExerciseId: Long, notes: String) { error("Unused operation") }
+        override suspend fun updateExerciseNotes(workoutExerciseId: Long, notes: String) {
+            before("notes")
+            require(notes.length <= 5000)
+            state.value = listOf(detail.copy(exercises = detail.exercises.map { if (it.entry.id == workoutExerciseId) it.copy(entry = it.entry.copy(notes = notes)) else it }))
+        }
         override suspend fun saveRoutine(id: Long?, name: String): Long = error("Unused operation")
         override suspend fun addRoutineExercise(routineId: Long, exerciseId: Long) { error("Unused operation") }
         override suspend fun removeRoutineExercise(id: Long) { error("Unused operation") }

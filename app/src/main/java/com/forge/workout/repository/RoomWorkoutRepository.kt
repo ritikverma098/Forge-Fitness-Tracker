@@ -34,6 +34,8 @@ class RoomWorkoutRepository(private val database: ForgeDatabase) : WorkoutReposi
     override suspend fun workout(id: Long): Workout? = dao.workout(id)
     override suspend fun workoutSet(id: Long): WorkoutSet? = dao.workoutSet(id)
     override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> = dao.sets(workoutExerciseId)
+    override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean =
+        dao.workoutExercises(workoutId).any { it.exerciseId == exerciseId }
 
     override suspend fun ensureSeeded() = database.withTransaction {
         if (dao.metadata("default_exercises_v1") == null) {

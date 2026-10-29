@@ -20,6 +20,7 @@ interface WorkoutRepository {
     suspend fun workout(id: Long): Workout?
     suspend fun workoutSet(id: Long): WorkoutSet?
     suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet>
+    suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean
     suspend fun ensureSeeded()
     suspend fun saveExercise(exercise: Exercise): Long
     suspend fun deleteExercise(id: Long)

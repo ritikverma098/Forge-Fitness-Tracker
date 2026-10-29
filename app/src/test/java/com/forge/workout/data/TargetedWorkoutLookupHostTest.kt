@@ -14,6 +14,7 @@ import com.forge.workout.model.Workout
 import com.forge.workout.model.WorkoutExercise
 import com.forge.workout.model.WorkoutSet
 import com.forge.workout.repository.RoomWorkoutRepository
+import com.forge.workout.repository.WorkoutRepository
 import com.forge.workout.viewmodel.SetField
 import com.forge.workout.viewmodel.WorkoutViewModel
 import com.forge.workout.utils.userMessage
@@ -181,6 +182,85 @@ class TargetedWorkoutLookupHostTest {
         assertEquals(setOf("set_${SECOND_SET}_reps"), model.invalidInputs.value[CURRENT])
         assertEquals(setOf("notes_10001"), model.invalidInputs.value[1])
         assertEquals(originalHistory, repository.observeWorkouts().first().filter { it.workout.id != CURRENT })
+    }
+
+    @Test fun `selecting an existing workout exercise remains satisfied without writes or full history reads`() = runTest(dispatcher) {
+        seedLargeHistory()
+        val entries = database.workoutDao().workoutExercises(CURRENT)
+        val sets = repository.workoutExerciseSets(ENTRY)
+        val model = model()
+        captureQueries = true
+        queries.clear()
+
+        model.addExercise(CURRENT, 1)
+        model.addExercise(CURRENT, 1)
+        assertTrue(model.flush())
+        model.retryFailedChanges()
+        assertTrue(model.flush())
+        val mutationQueries = queries.toList()
+
+        assertNull(model.error.value)
+        assertNoFullHistoryRead(mutationQueries)
+        assertTrue(mutationQueries.any { normalize(it.sql) == "select * from workout_exercises where workoutid = ? order by orderindex, id" && it.arguments == listOf(CURRENT) })
+        assertFalse(mutationQueries.any { normalize(it.sql).startsWith("insert") })
+        assertEquals(entries, database.workoutDao().workoutExercises(CURRENT))
+        assertEquals(sets, repository.workoutExerciseSets(ENTRY))
+    }
+
+    @Test fun `retry resolves a failed selection already satisfied by another writer without duplicating its set`() = runTest(dispatcher) {
+        val (workoutId, exerciseId) = seedSelection()
+        database.openHelper.writableDatabase.execSQL("""
+            CREATE TRIGGER reject_added_exercise BEFORE INSERT ON workout_exercises
+            BEGIN SELECT RAISE(ABORT, 'Injected exercise storage failure'); END
+        """.trimIndent())
+        val model = model()
+        model.addExercise(workoutId, exerciseId)
+        assertFalse(model.flush())
+        assertTrue(database.workoutDao().workoutExercises(workoutId).isEmpty())
+        database.openHelper.writableDatabase.execSQL("DROP TRIGGER reject_added_exercise")
+        repository.addExercise(workoutId, exerciseId)
+        val entry = database.workoutDao().workoutExercises(workoutId).single()
+        val sets = repository.workoutExerciseSets(entry.id)
+        captureQueries = true
+        queries.clear()
+
+        model.retryFailedChanges()
+        model.retryFailedChanges()
+        assertTrue(model.flush())
+        val mutationQueries = queries.toList()
+
+        assertNull(model.error.value)
+        assertNoFullHistoryRead(mutationQueries)
+        assertFalse(mutationQueries.any { normalize(it.sql).startsWith("insert") })
+        assertEquals(listOf(entry), database.workoutDao().workoutExercises(workoutId))
+        assertEquals(sets, repository.workoutExerciseSets(entry.id))
+    }
+
+    @Test fun `selection reconciles membership created between its read and attempted insert`() = runTest(dispatcher) {
+        val (workoutId, exerciseId) = seedSelection()
+        val concurrentWriter = object : WorkoutRepository by repository {
+            override suspend fun addExercise(workoutId: Long, exerciseId: Long) {
+                repository.addExercise(workoutId, exerciseId)
+                // The requested insert now encounters the ordinary duplicate validation.
+                repository.addExercise(workoutId, exerciseId)
+            }
+        }
+        val model = WorkoutViewModel(concurrentWriter, { it.message.orEmpty() }).also { store.put("workout", it) }
+        captureQueries = true
+        queries.clear()
+        model.addExercise(workoutId, exerciseId)
+        assertTrue(model.flush())
+        val mutationQueries = queries.toList()
+
+        assertNull(model.error.value)
+        assertNoFullHistoryRead(mutationQueries)
+        val entry = database.workoutDao().workoutExercises(workoutId).single()
+        assertEquals(1, repository.workoutExerciseSets(entry.id).size)
+    }
+
+    private suspend fun seedSelection(): Pair<Long, Long> {
+        val exercise = database.workoutDao().insertExercise(Exercise(name = "Selection press", primaryMuscleGroup = MuscleGroup.CHEST))
+        return repository.startWorkout("Selection workout") to exercise
     }
 
     private fun model(): WorkoutViewModel = WorkoutViewModel(repository,

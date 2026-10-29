@@ -313,6 +313,8 @@ class WorkoutPerformanceHostTest {
 
         override fun observeWorkouts(): Flow<List<WorkoutDetail>> = state
         override suspend fun workout(id: Long): Workout? = state.value.firstOrNull { it.workout.id == id }?.workout
+        override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean = state.value
+            .firstOrNull { it.workout.id == workoutId }?.exercises?.any { it.exercise.id == exerciseId } == true
         override suspend fun workoutSet(id: Long): WorkoutSet? = state.value.asSequence()
             .flatMap { it.exercises.asSequence() }.flatMap { it.sets.asSequence() }.firstOrNull { it.id == id }
         override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> = state.value.asSequence()

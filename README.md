@@ -1,4 +1,4 @@
-# Forge 1.3.0
+# Forge 1.3.1
 
 [Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
 
@@ -6,17 +6,17 @@ A native workout and nutrition tracker for Android 8.0 and newer, built with Kot
 
 Training and nutrition work offline, including the bundled food catalog. There are no ads, accounts, analytics or cloud sync. The app uses the internet only for an optional food catalog download requested by the user.
 
-[Features](#features) · [Build and install](#build-and-install) · [Backup and restore](#backup-and-restore) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
+[Features](#features) · [Changelog](CHANGELOG.md) · [Build and install](#build-and-install) · [Backup and restore](#backup-and-restore) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
 
 ## Download
 
-[Download Forge 1.3.0 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.0/Forge-1.3.0.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+[Download Forge 1.3.1 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.1/Forge-1.3.1.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
 
 The downloadable APK uses the optimized release build, signed with the existing **development/debug key for sideload testing**. It does not use a production Play Store signing key. Android requires the same signing certificate to update an installed copy; back up your data before changing installations. The source project's normal `assembleRelease` remains unsigned, and no signing credentials are included.
 
 ## Screenshots
 
-Captured from the current build on an Android 17 emulator using synthetic QA data.
+Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.1 retains these layouts.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Captured from the current build on an Android 17 emulator using synthetic QA dat
 
 ## Development status
 
-The **1.3.0 feature implementation is complete**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
+The **1.3.0 feature implementation is complete**, with stability fixes in **1.3.1**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and additional regional food packs where suitable redistribution rights and source data are available. Scope and timing are undecided. No additional regional packs are hosted with this release.
 
@@ -38,6 +38,14 @@ Tentative follow-up work includes physical-device checks for scrolling, Back tra
 - A retained bottom navigation bar avoids repeated construction during Back while preserving the existing transition animations.
 
 These fixes passed host and emulator regression checks without clearing existing user data. Frame timings improved, but emulator spikes remain; repeated first-drag-after-idle scrolling and Back smoothness still require physical-phone verification.
+
+### Bug fixes in 1.3.1
+
+- Saved workout fields retain their originating weight unit and exact pending value across unit changes; clearing a completed quantity then unchecking Done saves zero correctly.
+- Failed workout saves remain blocked until corrected or explicitly retried. Retry only repeats unresolved changes, and selecting an exercise already present does not duplicate it or block Finish.
+- Catalog initialization preserves a complete explicitly imported revision, including arbitrary version labels. An incomplete external pack requires explicit reimport.
+- Backups accept Unicode exercise names according to Room's stored uniqueness rules, preserving existing names and relationships.
+- Backup row IDs are bounded before restore, and transactional sequence repair recovers allocation after earlier extreme-ID imports. Room schema 4 and backup format 3 are unchanged.
 
 ## Build and install
 
@@ -141,6 +149,10 @@ Reference catalog packs are not copied into personal backups, and installed pack
 
 Import validates structure, versions, relationships, snapshot references, types and values before confirmation. Room replaces rows in one transaction; if it fails after preferences were imported, previous preferences are restored. Pending workout/nutrition writes are drained first. A committed restore rebuilds navigation and editor drafts while shared repositories keep observing the same Room instance. Rest delivery and workout-energy reconciliation pause across restore, then reconcile committed or rolled-back data. A failed restore leaves existing data usable; no database-file replacement, destructive recreation or manual app restart is required.
 
+Numeric user row IDs must be between 1 and 9,007,199,254,740,991, preserving exact portable JSON values and ample SQLite allocation headroom. Unsupported IDs are rejected before mutation. A successful restore rebases affected AUTOINCREMENT sequences to surviving/restored rows within the same transaction, retaining installed reference foods and leaving independent nutrition sequences unchanged for workout-only backups.
+
+This is a finite portable-backup capacity: a hand-edited import assigning an ID at the ceiling leaves no portable ID space for subsequent records in that table, even though SQLite can allocate larger values. Ordinary generated IDs are far below this ceiling.
+
 ## Architecture
 
 A single-activity MVVM app using Navigation Compose and small feature ViewModels. Screens receive immutable snapshots from `StateFlow` and call ViewModel actions. Room access is isolated behind `WorkoutRepository`, `NutritionRepository` and `BackupRepository`; multi-row mutations are transactional. A small application-scoped dependency container constructs Room and DataStore once. Hilt is intentionally unnecessary for this project's scope.
@@ -188,6 +200,8 @@ See [Android Gradle Plugin compatibility](https://developer.android.com/build/re
 Unit tests cover calculations, personal records, exercise/set validation, queued workout mutations, backup validation and restore state. Robolectric 4.17 runs Room transactions, migrations, real Compose navigation/recomposition checks and Android alarm/notification behavior on the host, with caches isolated under the project's ignored `.gradle/` directory. Instrumented tests cover Room operations and application navigation. UI tests use an isolated in-memory database and separate test preferences so they never clear user training data.
 
 The stability update was verified on 28 October 2026 with **463 unit/Robolectric tests passing with no failures, errors or skips**, debug and instrumentation APK builds, and zero lint findings. Android 17/API 37 emulator checks also passed for workout editing/rest controls in both themes, predictive Back commit/cancel, routine/custom-exercise flows, immediate navigation after restore, catalog progress with blocked reads, and 14 Room/repository cases. Instrumentation explicitly uses Espresso 3.7.0 for Android 17 compatibility.
+
+The 1.3.1 bug fixes were verified on 29 October 2026 with **513 unit/Robolectric tests**, **14 emulator tests** and **6 catalog pipeline tests** passing, plus debug/test APK builds and lint. New regressions cover saved unit/draft conversion, cleared quantities, failed-write retries, duplicate exercise selection, imported catalog preservation, Unicode names, ID bounds and transactional sequence recovery. Native restore tests exercise the same Activity immediately afterward; existing installed QA data was retained.
 
 System traces identified large exercise/header prefetch work and repeated bottom-bar construction; focused changes reduce those costs. Emulator debug frame timings still contain spikes, so this is not a claim of uniformly smooth physical-device performance. Verify idle-then-drag scrolling, Back transitions and alert timing on a phone. Testing preserved installed user data; fresh-data restore cases used isolated test databases.
 

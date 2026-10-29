@@ -197,6 +197,58 @@ class SetRowHostTest {
         assertTrue(fixture.completions.isEmpty())
     }
 
+    @Test fun `unchecking a completed set persists its cleared quantity for every exercise type`() {
+        val fixture = showSet(initial = initialSet().copy(completed = true))
+        val cases = listOf(
+            QuantityCase(ExerciseType.WEIGHT_REPS, SetField.REPS, R.string.reps_label, "8"),
+            QuantityCase(ExerciseType.BODYWEIGHT, SetField.REPS, R.string.reps_label, "8"),
+            QuantityCase(ExerciseType.REPS_ONLY, SetField.REPS, R.string.reps_label, "8"),
+            QuantityCase(ExerciseType.DURATION, SetField.DURATION, R.string.duration_label, "90"),
+            QuantityCase(ExerciseType.DISTANCE, SetField.DISTANCE, R.string.distance_label, "3.5"),
+        )
+        cases.forEachIndexed { index, case ->
+            val id = SET_ID + index
+            compose.runOnIdle {
+                fixture.type.value = case.type
+                fixture.set.value = initialSet().copy(id = id, completed = true,
+                    reps = if (case.field == SetField.REPS) 8 else 0,
+                    duration = if (case.field == SetField.DURATION) 90 else 0,
+                    distance = if (case.field == SetField.DISTANCE) 3.5 else 0.0)
+            }
+            val quantity = compose.onNodeWithTag(numericTag(id, case.field))
+            quantity.assertTextEquals(case.value).performTextClearance()
+            assertEquals(index, fixture.values.size)
+            assertFalse(fixture.lastValidity(case.field))
+            compose.onNodeWithTag("set_done_$id").assertIsOn().performClick()
+            compose.waitForIdle()
+            assertEquals("", quantity.fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+            assertEquals(index + 1, fixture.values.size)
+            assertEquals(case.field to 0.0, fixture.values.last())
+            assertTrue(fixture.lastValidity(case.field))
+            compose.onNodeWithTag("set_done_$id").assertIsOff().assertIsNotEnabled()
+        }
+    }
+
+    @Test fun `unchecking also persists a rejected zero but keeps other invalid input blocked`() {
+        val fixture = showSet(initial = initialSet().copy(completed = true))
+        val reps = compose.onNodeWithTag(numericTag(SET_ID, SetField.REPS))
+        reps.performTextReplacement("0")
+        assertTrue(fixture.values.isEmpty())
+        compose.onNodeWithTag("set_done_$SET_ID").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(SetField.REPS to 0.0), fixture.values)
+        compose.onNodeWithTag("set_done_$SET_ID").assertIsNotEnabled()
+
+        compose.runOnIdle { fixture.set.value = initialSet().copy(id = SET_ID + 1, completed = true) }
+        compose.onNodeWithTag(numericTag(SET_ID + 1, SetField.REPS)).performTextReplacement("2.5")
+        compose.onNodeWithTag("set_done_${SET_ID + 1}").performClick()
+        compose.waitForIdle()
+        assertEquals(8, fixture.set.value.reps)
+        assertFalse(fixture.lastValidity(SetField.REPS))
+        assertEquals(1, fixture.values.size)
+        compose.onNodeWithTag("set_done_${SET_ID + 1}").assertIsNotEnabled()
+    }
+
     private fun showSet(
         initial: WorkoutSet = initialSet(),
         type: ExerciseType = ExerciseType.WEIGHT_REPS,

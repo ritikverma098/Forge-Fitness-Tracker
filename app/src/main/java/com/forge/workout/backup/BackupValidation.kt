@@ -3,10 +3,11 @@ package com.forge.workout.backup
 import com.forge.workout.preferences.PreferencesRepository
 import com.forge.workout.utils.ExerciseValidation
 import com.forge.workout.utils.WorkoutValidation
-import java.util.Locale
 
 internal object BackupValidation {
     const val SEED_KEY = "default_exercises_v1"
+    // Keep portable JSON IDs exact and leave ample room for SQLite-generated rows.
+    const val MAX_ROW_ID = 9_007_199_254_740_991L
 
     fun validate(backup: ForgeBackup) = checked {
         require(backup.createdAt >= 0) { "Invalid backup date." }
@@ -17,10 +18,10 @@ internal object BackupValidation {
         uniqueIds(backup.routines.map { it.id })
         uniqueIds(backup.routineExercises.map { it.id })
 
-        val names = HashSet<String>()
+        val names = HashSet<ExerciseNameKey>()
         backup.exercises.forEach { exercise ->
             ExerciseValidation.validate(exercise)
-            require(names.add(exercise.name.trim().lowercase(Locale.ROOT))) { "Duplicate exercise name." }
+            require(names.add(exerciseNameKey(exercise.name))) { "Duplicate exercise name." }
         }
         backup.workouts.forEach { workout ->
             WorkoutValidation.validateName(workout.name)
@@ -68,7 +69,22 @@ internal object BackupValidation {
     }
 
     private fun uniqueIds(ids: List<Long>) {
-        require(ids.all { it > 0 } && ids.distinct().size == ids.size) { "Invalid or duplicate row ID." }
+        require(ids.all { it in 1..MAX_ROW_ID } && ids.distinct().size == ids.size) { "Invalid, unsupported or duplicate row ID." }
+    }
+
+    private data class ExerciseNameKey(val prefix: String, val utf8ByteLength: Int)
+
+    private fun exerciseNameKey(name: String): ExerciseNameKey {
+        // Match the stored name's SQLite NOCASE index, which folds only ASCII.
+        // NUL ends the compared prefix; ties still use the full UTF-8 byte length.
+        val end = name.indexOf('\u0000').let { if (it < 0) name.length else it }
+        val prefix = buildString(end) {
+            for (index in 0 until end) {
+                val character = name[index]
+                append(if (character in 'A'..'Z') character + ('a' - 'A') else character)
+            }
+        }
+        return ExerciseNameKey(prefix, name.toByteArray(Charsets.UTF_8).size)
     }
 
     private fun consecutive(values: List<Int>, start: Int) {
