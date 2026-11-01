@@ -75,7 +75,8 @@ class ForgeNavigationTest {
         waitForText(quantityText(R.plurals.library_results, 81, 81))
         compose.onNodeWithText(quantityText(R.plurals.library_results, 81, 81)).assertIsDisplayed()
         compose.onNode(hasSetTextAction()).performTextInput("Bench Press")
-        compose.onNodeWithText("Bench Press", substring = false).assertIsDisplayed()
+        compose.onNode(hasText("Bench Press", substring = false) and
+            hasAnyAncestor(hasTestTag("library_exercise_results"))).assertIsDisplayed()
         assertEquals(81, runBlocking { repository.observeExercises().first().size })
         assertTrue(runBlocking { repository.observeWorkouts().first().isEmpty() })
     }
@@ -419,7 +420,8 @@ class ForgeNavigationTest {
         compose.onNodeWithText(text(R.string.routines_add_exercise)).performScrollTo().performClick()
         waitForText(text(R.string.library_search))
         compose.onNode(hasSetTextAction()).performTextInput("Squat")
-        compose.onNodeWithText("Squat", substring = false).performClick()
+        compose.onNode(hasText("Squat", substring = false) and
+            hasAnyAncestor(hasTestTag("routine_exercise_results"))).performClick()
         waitForRepository { repository.observeRoutines().first().any { it.routine.name == "Legs UI Test" && it.exercises.size == 1 } }
         val routine = runBlocking { repository.observeRoutines().first().single() }
         assertEquals("Squat", routine.exercises.single().exercise.name)

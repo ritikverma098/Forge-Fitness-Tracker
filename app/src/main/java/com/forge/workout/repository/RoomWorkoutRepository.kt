@@ -32,6 +32,7 @@ class RoomWorkoutRepository(private val database: ForgeDatabase) : WorkoutReposi
     override fun observeWorkouts(): Flow<List<WorkoutDetail>> = dao.observeWorkouts()
     override fun observeRoutines(): Flow<List<RoutineDetail>> = dao.observeRoutines()
     override suspend fun workout(id: Long): Workout? = dao.workout(id)
+    override suspend fun workoutExercise(id: Long): WorkoutExercise? = dao.workoutExercise(id)
     override suspend fun workoutSet(id: Long): WorkoutSet? = dao.workoutSet(id)
     override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> = dao.sets(workoutExerciseId)
     override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean =
@@ -196,6 +197,9 @@ class RoomWorkoutRepository(private val database: ForgeDatabase) : WorkoutReposi
         require(workout.endTime == null || endTime == null) { "A finished workout cannot start a rest timer." }
         dao.updateWorkout(workout.copy(restEndTime = endTime))
     }
+
+    override suspend fun adjustRestEndTime(workoutId: Long, expectedDeadline: Long, adjustedDeadline: Long, now: Long): Boolean =
+        dao.adjustRestEndTime(workoutId, expectedDeadline, adjustedDeadline, now) == 1
 
     override suspend fun saveRoutine(id: Long?, name: String): Long = database.withTransaction {
         WorkoutValidation.validateName(name)

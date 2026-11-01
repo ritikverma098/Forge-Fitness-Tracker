@@ -123,7 +123,10 @@ class NutritionBackupRepositoryHostTest {
         try {
             backups.restore(changed) {
                 callbackRan = true
-                assertEquals(changed, snapshot())
+                // Inspect the uncommitted transaction through a separate diagnostic reader;
+                // the production export operation is serialized behind the restore.
+                val inserted = RoomBackupRepository(database) { preferences }.snapshot().copy(createdAt = 10000)
+                assertEquals(changed, inserted)
                 throw IOException("Injected preference failure")
             }
             throw AssertionError("Expected callback failure")

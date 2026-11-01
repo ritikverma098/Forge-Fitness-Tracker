@@ -2,6 +2,7 @@ package com.forge.workout.nutrition.data
 
 import com.forge.workout.nutrition.model.*
 import java.time.LocalDate
+import kotlin.math.abs
 
 internal object NutritionValidation {
     fun id(value: String) = text(value, 200, "ID")
@@ -82,13 +83,27 @@ internal object NutritionValidation {
         require(value.installedAt >= 0 && value.foodCount >= 0 && value.payloadBytes >= 0) { "Invalid catalog metadata." }
         require(value.sha256.isEmpty() || value.sha256.matches(Regex("[a-fA-F0-9]{64}"))) { "Invalid catalog checksum." }
     }
-    fun amount(snapshot: FoodSnapshot, quantity: Double, factor: Double, portionId: String?, portionLabel: String?) {
+    fun amount(snapshot: FoodSnapshot, quantity: Double, unit: FoodUnit, factor: Double, portionId: String?, portionLabel: String?) {
         NutritionValidation.snapshot(snapshot)
         number(quantity, "quantity", true)
         number(factor, "nutrition factor", true)
         portionId?.let(::id)
         portionLabel?.let { text(it, 250, "Selected portion") }
         require((portionId == null) == (portionLabel == null)) { "Selected portion needs both ID and label." }
+        if (portionId == null) {
+            val equivalent = when {
+                unit == snapshot.baseUnit -> snapshot.baseAmount
+                unit == FoodUnit.GRAM -> snapshot.gramsPerBase
+                unit == FoodUnit.MILLILITER -> snapshot.millilitersPerBase
+                else -> null
+            }
+            require(equivalent != null) { "This food has no conversion for the selected unit." }
+            val expected = quantity / equivalent
+            require(expected.isFinite() && expected > 0 && abs(factor / expected - 1.0) <= 1e-9) {
+                "Nutrition factor must match its recorded quantity and unit."
+            }
+        }
+        // Named historical portions retain their frozen conversion after catalog changes.
         snapshot.nutrients.forEach { optionalNumber(it.value?.times(factor), "scaled nutrient value", max = 1_000_000_000_000.0) }
     }
     fun diary(value: DiaryEntity) {
@@ -96,7 +111,7 @@ internal object NutritionValidation {
         day(value.day)
         value.foodId?.let(::id)
         require(value.foodId == null || value.snapshot.foodId == null || value.foodId == value.snapshot.foodId) { "Diary food identity must match its snapshot." }
-        amount(value.snapshot, value.quantity, value.factor, value.portionId, value.portionLabel)
+        amount(value.snapshot, value.quantity, value.unit, value.factor, value.portionId, value.portionLabel)
     }
     fun recipe(recipe: RecipeEntity, food: FoodDetail, ingredients: List<RecipeIngredientEntity>) {
         id(recipe.id)
@@ -113,7 +128,7 @@ internal object NutritionValidation {
             require(it.id >= 0 && it.recipeId == recipe.id && it.foodId != recipe.id && it.snapshot.foodId != recipe.id) { "Invalid recipe ingredient." }
             it.foodId?.let(::id)
             require(it.foodId == null || it.snapshot.foodId == null || it.foodId == it.snapshot.foodId) { "Ingredient food identity must match its snapshot." }
-            amount(it.snapshot, it.quantity, it.factor, it.portionId, it.portionLabel)
+            amount(it.snapshot, it.quantity, it.unit, it.factor, it.portionId, it.portionLabel)
         }
     }
     fun goal(value: NutritionGoalEntity) {

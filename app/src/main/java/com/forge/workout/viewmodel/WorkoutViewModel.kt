@@ -1,15 +1,18 @@
 package com.forge.workout.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.forge.workout.model.WorkoutSet
 import com.forge.workout.model.SetType
 import com.forge.workout.model.MuscleGroup
 import com.forge.workout.repository.WorkoutRepository
+import com.forge.workout.utils.WorkoutValidation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -17,12 +20,19 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.UUID
 
 class WorkoutViewModel(
     private val repository: WorkoutRepository,
     private val errorFormatter: (Throwable) -> String,
     private val clock: () -> Long = System::currentTimeMillis,
+    savedState: SavedStateHandle,
 ) : ViewModel() {
+    @androidx.annotation.VisibleForTesting
+    constructor(repository: WorkoutRepository, errorFormatter: (Throwable) -> String,
+        clock: () -> Long = System::currentTimeMillis) : this(repository, errorFormatter, clock, SavedStateHandle())
+
+    val editorSessionId: String = UUID.randomUUID().toString()
     private val mutex = Mutex()
     private val pendingLock = Any()
     private val pendingJobs = mutableSetOf<Job>()
@@ -47,6 +57,42 @@ class WorkoutViewModel(
     val errorNotice = _errorNotice.asStateFlow()
     private val _invalidInputs = MutableStateFlow<Map<Long, Set<String>>>(emptyMap())
     val invalidInputs = _invalidInputs.asStateFlow()
+    private val draftJournal = WorkoutDraftJournal(savedState)
+    private val numericDraftFlows = mutableMapOf<Long, MutableStateFlow<Map<SetField, Double>>>()
+    private val numericDraftViews = mutableMapOf<Long, StateFlow<Map<SetField, Double>>>()
+    private val workoutDraftFlows = mutableMapOf<Long, MutableStateFlow<WorkoutIdentityDraft?>>()
+    private val workoutDraftViews = mutableMapOf<Long, StateFlow<WorkoutIdentityDraft?>>()
+    private val exerciseNoteDraftFlows = mutableMapOf<Long, MutableStateFlow<String?>>()
+    private val exerciseNoteDraftViews = mutableMapOf<Long, StateFlow<String?>>()
+
+    init {
+        draftJournal.pending().forEach { assignment ->
+            setValueInternal(assignment.setId, assignment.field, assignment.value, assignment.base, recovering = true)
+        }
+        draftJournal.pendingText().forEach { assignment ->
+            when (assignment.kind) {
+                TextDraftKind.WORKOUT -> renameInternal(assignment.id, assignment.first, requireNotNull(assignment.second),
+                    assignment.baseFirst, assignment.baseSecond, recovering = true)
+                TextDraftKind.EXERCISE -> exerciseNotesInternal(assignment.id, assignment.first, assignment.baseFirst, recovering = true)
+            }
+        }
+    }
+
+    /** A row observes only its own accepted values; acknowledgements remain visible while Room catches up. */
+    fun numericDrafts(setId: Long): StateFlow<Map<SetField, Double>> = synchronized(pendingLock) {
+        val mutable = numericDraftFlows.getOrPut(setId) { MutableStateFlow(emptyMap()) }
+        numericDraftViews.getOrPut(setId) { mutable.asStateFlow() }
+    }
+
+    fun workoutDrafts(workoutId: Long): StateFlow<WorkoutIdentityDraft?> = synchronized(pendingLock) {
+        val mutable = workoutDraftFlows.getOrPut(workoutId) { MutableStateFlow(null) }
+        workoutDraftViews.getOrPut(workoutId) { mutable.asStateFlow() }
+    }
+
+    fun exerciseNoteDrafts(exerciseId: Long): StateFlow<String?> = synchronized(pendingLock) {
+        val mutable = exerciseNoteDraftFlows.getOrPut(exerciseId) { MutableStateFlow(null) }
+        exerciseNoteDraftViews.getOrPut(exerciseId) { mutable.asStateFlow() }
+    }
 
     fun clearError() { _errorNotice.value?.let(::clearError) }
 
@@ -99,13 +145,15 @@ class WorkoutViewModel(
         job.start()
     }
 
-    private fun perform(target: Target, id: Long, operation: String, distinct: Boolean = false, action: suspend (Boolean) -> Unit) {
+    private fun perform(target: Target, id: Long, operation: String, distinct: Boolean = false,
+        beforeEnqueue: ((Long) -> Unit)? = null, action: suspend (Boolean) -> Unit) {
         val mutation = synchronized(pendingLock) {
             val request = ++nextRequest
             val key = MutationKey(target, id, operation, request.takeIf { distinct })
             latestRequests[key] = request
             Mutation(request, generation, key, action)
         }
+        beforeEnqueue?.invoke(mutation.id)
         enqueue { attempt(mutation, retrying = false) }
     }
 
@@ -147,7 +195,38 @@ class WorkoutViewModel(
         if (replace) (current + 1L).also { timerSessions[id] = it } else current
     }
 
-    fun rename(id: Long, name: String, notes: String) = perform(Target.WORKOUT, id, "identity") { repository.updateWorkout(id, name, notes) }
+    fun rename(id: Long, name: String, notes: String) = renameInternal(id, name, notes)
+
+    private fun renameInternal(id: Long, name: String, notes: String, baseName: String? = null,
+        baseNotes: String? = null, recovering: Boolean = false) {
+        val desired = WorkoutIdentityDraft(name.trim(), notes)
+        var revision = 0L
+        val accepted = runCatching { validateIdentity(name, notes) }.isSuccess
+        perform(Target.WORKOUT, id, "identity", beforeEnqueue = { request ->
+            revision = request
+            if (accepted) {
+                draftJournal.put(TextDraftAssignment(TextDraftKind.WORKOUT, id, desired.name, notes, request, baseName, baseNotes))
+                synchronized(pendingLock) { workoutDraftFlows.getOrPut(id) { MutableStateFlow(null) }.value = desired }
+            }
+        }) { retrying ->
+            validateIdentity(name, notes)
+            val current = repository.workout(id)
+            if (current == null) {
+                if (!recovering) throw IllegalArgumentException("Workout was not found.")
+                forgetTextDrafts(TextDraftKind.WORKOUT, setOf(id))
+                return@perform
+            }
+            val matches = current.name == desired.name && current.notes == notes
+            if (recovering && !retrying && !matches && (baseName == null || baseNotes == null || current.name != baseName || current.notes != baseNotes)) {
+                throw WorkoutDraftRecoveryException()
+            }
+            if (!recovering || !matches) {
+                draftJournal.beforeTextWrite(TextDraftKind.WORKOUT, id, revision, current.name, current.notes)
+                repository.updateWorkout(id, desired.name, notes)
+            }
+            draftJournal.acknowledgeText(TextDraftKind.WORKOUT, id, revision, desired.name, notes)
+        }
+    }
     fun toggleMuscleGroup(id: Long, group: MuscleGroup) = perform(Target.WORKOUT, id, "muscle", distinct = true) {
         val selected = repository.workout(id)?.muscleGroups?.toSet() ?: return@perform
         repository.updateMuscleGroups(id, if(group in selected) selected - group else selected + group)
@@ -172,7 +251,34 @@ class WorkoutViewModel(
         }
     }
     fun moveExercise(id: Long, delta: Int) = perform(Target.EXERCISE, id, "move", distinct = true) { repository.moveWorkoutExercise(id, delta) }
-    fun exerciseNotes(id: Long, notes: String) = perform(Target.EXERCISE, id, "notes") { repository.updateExerciseNotes(id, notes) }
+    fun exerciseNotes(id: Long, notes: String) = exerciseNotesInternal(id, notes)
+
+    private fun exerciseNotesInternal(id: Long, notes: String, base: String? = null, recovering: Boolean = false) {
+        var revision = 0L
+        perform(Target.EXERCISE, id, "notes", beforeEnqueue = { request ->
+            revision = request
+            if (notes.length <= 5000) {
+                draftJournal.put(TextDraftAssignment(TextDraftKind.EXERCISE, id, notes, null, request, base))
+                synchronized(pendingLock) { exerciseNoteDraftFlows.getOrPut(id) { MutableStateFlow(null) }.value = notes }
+            }
+        }) { retrying ->
+            require(notes.length <= 5000) { "Notes must be 5,000 characters or fewer." }
+            val current = repository.workoutExercise(id)
+            if (current == null) {
+                if (!recovering) throw IllegalArgumentException("Workout exercise was not found.")
+                forgetTextDrafts(TextDraftKind.EXERCISE, setOf(id))
+                return@perform
+            }
+            if (recovering && !retrying && current.notes != notes && (base == null || current.notes != base)) {
+                throw WorkoutDraftRecoveryException()
+            }
+            if (!recovering || current.notes != notes) {
+                draftJournal.beforeTextWrite(TextDraftKind.EXERCISE, id, revision, current.notes, null)
+                repository.updateExerciseNotes(id, notes)
+            }
+            draftJournal.acknowledgeText(TextDraftKind.EXERCISE, id, revision, notes, null)
+        }
+    }
     fun addSet(id: Long) = perform(Target.EXERCISE, id, "addSet", distinct = true) { repository.addSet(id) }
     fun rest(id: Long, endTime: Long?) {
         val intent = timerIntent(id)
@@ -193,7 +299,7 @@ class WorkoutViewModel(
             if(workout.endTime != null || deadline <= now) return@perform
             val delta = seconds * 1_000L
             val adjusted = if(delta > 0) deadline.coerceAtMost(Long.MAX_VALUE - delta) + delta else deadline + delta
-            repository.setRestEndTime(id, adjusted.coerceAtLeast(now))
+            repository.adjustRestEndTime(id, deadline, adjusted.coerceAtLeast(now), now)
         }
     }
 
@@ -221,15 +327,46 @@ class WorkoutViewModel(
         clearInputsMatching { it.startsWith("set_${id}_") }
     }
 
-    fun setValue(id: Long, field: SetField, value: Double) = perform(Target.SET, id, "value:$field") {
-        validateValue(field, value)
-        val set = currentSet(id) ?: return@perform
-        repository.updateSet(when (field) {
-            SetField.WEIGHT -> set.copy(weight = value)
-            SetField.REPS -> set.copy(reps = value.toInt())
-            SetField.DURATION -> set.copy(duration = value.toInt())
-            SetField.DISTANCE -> set.copy(distance = value)
-        })
+    fun setValue(id: Long, field: SetField, value: Double) = setValueInternal(id, field, value)
+
+    private fun setValueInternal(id: Long, field: SetField, value: Double, base: Double? = null, recovering: Boolean = false) {
+        var revision = 0L
+        val accepted = runCatching { validateValue(field, value) }.isSuccess
+        perform(Target.SET, id, "value:$field", beforeEnqueue = { request ->
+            revision = request
+            if (accepted) {
+                draftJournal.put(NumericDraftAssignment(id, field, value, request, base))
+                synchronized(pendingLock) {
+                    numericDraftFlows.getOrPut(id) { MutableStateFlow(emptyMap()) }.update { it + (field to value) }
+                }
+            }
+        }) { retrying ->
+            validateValue(field, value)
+            val set = currentSet(id)
+            if (set == null) {
+                forgetNumericDrafts(setOf(id))
+                return@perform
+            }
+            val stored = when (field) {
+                SetField.WEIGHT -> set.weight
+                SetField.REPS -> set.reps.toDouble()
+                SetField.DURATION -> set.duration.toDouble()
+                SetField.DISTANCE -> set.distance
+            }
+            if (recovering && !retrying && stored != value && (base == null || stored != base)) {
+                throw WorkoutDraftRecoveryException()
+            }
+            if (!recovering || stored != value) {
+                draftJournal.beforeWrite(id, field, revision, stored)
+                repository.updateSet(when (field) {
+                    SetField.WEIGHT -> set.copy(weight = value)
+                    SetField.REPS -> set.copy(reps = value.toInt())
+                    SetField.DURATION -> set.copy(duration = value.toInt())
+                    SetField.DISTANCE -> set.copy(distance = value)
+                })
+            }
+            draftJournal.acknowledge(id, field, revision, value)
+        }
     }
     fun setType(id: Long, type: SetType) = perform(Target.SET, id, "type") {
         val set = currentSet(id) ?: return@perform
@@ -257,6 +394,9 @@ class WorkoutViewModel(
 
     private fun forgetTargets(targets: Set<Pair<Target, Long>>) {
         deletedTargets += targets
+        forgetNumericDrafts(targets.filter { it.first == Target.SET }.map { it.second }.toSet())
+        forgetTextDrafts(TextDraftKind.WORKOUT, targets.filter { it.first == Target.WORKOUT }.map { it.second }.toSet())
+        forgetTextDrafts(TextDraftKind.EXERCISE, targets.filter { it.first == Target.EXERCISE }.map { it.second }.toSet())
         val removed = failedMutations.values.filter { (it.key.target to it.key.id) in targets }.map { it.id }.toSet()
         failedMutations.entries.removeAll { (it.key.target to it.key.id) in targets }
         publishUnresolvedRequests()
@@ -276,6 +416,10 @@ class WorkoutViewModel(
 
     fun resetAfterRestore() {
         synchronized(pendingLock) { generation++; latestRequests.clear(); timerIntents.clear(); timerSessions.clear() }
+        draftJournal.clear()
+        forgetNumericDrafts(numericDraftFlows.keys.toSet())
+        forgetTextDrafts(TextDraftKind.WORKOUT, workoutDraftFlows.keys.toSet())
+        forgetTextDrafts(TextDraftKind.EXERCISE, exerciseNoteDraftFlows.keys.toSet())
         enqueue {
             failedMutations.clear()
             publishUnresolvedRequests()
@@ -283,6 +427,31 @@ class WorkoutViewModel(
             clearAllValidity()
             clearError()
         }
+    }
+
+    private fun forgetNumericDrafts(ids: Set<Long>) {
+        draftJournal.removeSets(ids)
+        synchronized(pendingLock) {
+            ids.forEach { id ->
+                numericDraftViews.remove(id)
+                numericDraftFlows.remove(id)?.value = emptyMap()
+            }
+        }
+    }
+
+    private fun forgetTextDrafts(kind: TextDraftKind, ids: Set<Long>) {
+        draftJournal.removeText(kind, ids)
+        synchronized(pendingLock) {
+            when (kind) {
+                TextDraftKind.WORKOUT -> ids.forEach { id -> workoutDraftViews.remove(id); workoutDraftFlows.remove(id)?.value = null }
+                TextDraftKind.EXERCISE -> ids.forEach { id -> exerciseNoteDraftViews.remove(id); exerciseNoteDraftFlows.remove(id)?.value = null }
+            }
+        }
+    }
+
+    private fun validateIdentity(name: String, notes: String) {
+        WorkoutValidation.validateName(name)
+        require(notes.length <= 5000) { "Notes must be 5,000 characters or fewer." }
     }
 
     private suspend fun currentSet(id: Long): WorkoutSet? = repository.workoutSet(id)
@@ -312,3 +481,5 @@ class WorkoutViewModel(
 enum class SetField { WEIGHT, REPS, DURATION, DISTANCE }
 
 data class WorkoutSaveError(val id: Long, val message: String, internal val requestId: Long)
+
+data class WorkoutIdentityDraft(val name: String, val notes: String)

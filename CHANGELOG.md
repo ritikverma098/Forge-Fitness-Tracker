@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.3.2 — 2026-11-01
+
+### Fixed
+
+- Recover unacknowledged workout field assignments after process recreation, preserving exact canonical weights and reliable Finish/Retry behavior.
+- Preserve the gram/mL nutrient basis and label servings of branded USDA foods. Correct the known retired bundled catalog without rewriting historical diary/recipe snapshots or replacing independently imported revisions.
+- Prevent a delayed ±15 adjustment from recreating a consumed or skipped rest timer.
+- Reject inconsistent native-unit nutrition quantities and factors before restoring a backup, while preserving historical named-portion compatibility.
+- Complete a pending timer claim independently of receiver/foreground cancellation. Retry the original deadline through a separate bounded Android alarm after transient delivery failure.
+- Recover interrupted restores coherently across Room and DataStore using a durable internal journal and shared startup recovery. Failed recovery retains its instructions and offers Retry.
+
+### Backup policy and compatibility
+
+- Explicitly support portable local backup files; disable unsupported Android automatic backup/device transfer of the catalog-bearing database. Settings explains the policy.
+- Version code 7; Room schema 4, existing migrations and portable backup format 3 remain unchanged. No new dependencies or permissions.
+- R-03/R-04 performance risks remain deferred pending measurements. No architecture, navigation-animation or feature redesign.
+- Verification: 601 unit/Robolectric tests, 47 Android functional tests and 10 importer tests passed, plus debug/test and optimized unsigned builds and lint. Native fault probes verified process-death restore recovery and timer delivery; physical-phone/OEM timing and interaction feel still need checking.
+- Verification details and remaining device limitations: [1.3.2 reliability report](docs/reliability-1.3.2.md).
+
+### Distribution
+
+- The downloadable APK is an optimized release build signed with the existing development/debug key for sideload testing. Its verified certificate matches 1.3.1; it is not a production Play Store key. Source builds keep `assembleRelease` unsigned, and signing credentials remain outside the repository.
+- The signed optimized APK installed over the existing emulator app without clearing data. Home, active set values/completion, History, Routines and selected settings matched the captured baseline; About showed 1.3.2. Scoped Logcat had no fatal exception, ANR or SQLite error. The 47 functional regressions used the debug build.
+- Android automatic cloud backup and device transfer are unsupported. Create a portable local backup in Settings before reinstalling or moving devices.
+
 ## 1.3.1 — 2026-10-29
 
 ### Fixed

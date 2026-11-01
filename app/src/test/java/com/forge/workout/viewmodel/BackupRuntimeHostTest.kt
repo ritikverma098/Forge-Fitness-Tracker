@@ -64,7 +64,7 @@ class BackupRuntimeHostTest {
         database = Room.inMemoryDatabaseBuilder(application, ForgeDatabase::class.java).build()
         repository = RoomWorkoutRepository(database)
         preferences = PreferencesRepository(application, "backup-runtime-${UUID.randomUUID()}")
-        backups = RoomBackupRepository(database) { preferences.preferences.first() }
+        backups = RoomBackupRepository(database, preferencesRestorer = preferences::replace) { preferences.preferences.first() }
     }
 
     @After fun tearDown() {
@@ -153,7 +153,7 @@ class BackupRuntimeHostTest {
         { userMessage(application, it) }, { application.getString(R.string.new_workout_name) })
 
     private suspend fun restoreThroughViewModel(app: AppViewModel, imported: ForgeBackup): BackupViewModel {
-        val model = BackupViewModel(backups, preferences,
+        val model = BackupViewModel(backups,
             documents = object : BackupDocuments {
                 override fun read(uri: Uri) = BackupCodec.encode(imported)
                 override fun write(uri: Uri, contents: String) = error("This test only restores backups")

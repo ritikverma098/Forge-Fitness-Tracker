@@ -28,34 +28,57 @@ class AndroidRestAlerts(context: Context) : RestAlerts {
     private val alarms = this.context.getSystemService(AlarmManager::class.java)
     private val notifications = this.context.getSystemService(NotificationManager::class.java)
 
-    @SuppressLint("ScheduleExactAlarm") // Permission is checked; a revocation race falls back below.
     override fun schedule(timer: RestTimer) {
         createChannel()
         notifications.cancel(NOTIFICATION_ID)
+        cancelRetry()
         val operation = PendingIntent.getBroadcast(
             context, ALARM_REQUEST_CODE,
             alarmIntent().putExtra(EXTRA_WORKOUT_ID, timer.workoutId).putExtra(EXTRA_DEADLINE, timer.deadline),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        scheduleAt(timer.deadline, operation)
+    }
+
+    /** Separate identity prevents an old delivery retry from replacing a new rest alarm. */
+    fun scheduleRetry(workoutId: Long, deadline: Long, previousAttempt: Int, now: Long = System.currentTimeMillis()): Boolean {
+        val retry = RestAlarmRetryPolicy.next(workoutId, deadline, previousAttempt, now) ?: return false
+        val operation = PendingIntent.getBroadcast(context, RETRY_REQUEST_CODE,
+            retryIntent().putExtra(EXTRA_WORKOUT_ID, retry.workoutId).putExtra(EXTRA_DEADLINE, retry.deadline)
+                .putExtra(EXTRA_RETRY_ATTEMPT, retry.attempt),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        scheduleAt(retry.triggerAtMillis, operation)
+        return true
+    }
+
+    @SuppressLint("ScheduleExactAlarm") // Both normal delivery and retry check special access.
+    private fun scheduleAt(triggerAt: Long, operation: PendingIntent) {
         if (exactAlarmsAllowed()) {
             try {
-                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timer.deadline, operation)
+                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
                 return
             } catch (_: SecurityException) {
                 // Settings can revoke exact alarm access between the check and scheduling.
             }
         }
-        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timer.deadline, operation)
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
     }
 
     override fun cancel() {
+        cancelOperation(ALARM_REQUEST_CODE, alarmIntent())
+        cancelRetry()
+        // Consuming a timer emits null from Room; keep its newly delivered notification visible.
+    }
+
+    private fun cancelRetry() = cancelOperation(RETRY_REQUEST_CODE, retryIntent())
+
+    private fun cancelOperation(requestCode: Int, intent: Intent) {
         val operation = PendingIntent.getBroadcast(
-            context, ALARM_REQUEST_CODE, alarmIntent(),
+            context, requestCode, intent,
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
         ) ?: return
         alarms.cancel(operation)
         operation.cancel()
-        // Consuming a timer emits null from Room; keep its newly delivered notification visible.
     }
 
     override fun foregroundFeedback() {
@@ -131,14 +154,18 @@ class AndroidRestAlerts(context: Context) : RestAlerts {
     }
 
     private fun alarmIntent() = Intent(context, RestAlarmReceiver::class.java).setAction(ACTION_REST_ALARM)
+    private fun retryIntent() = Intent(context, RestAlarmReceiver::class.java).setAction(ACTION_REST_RETRY)
 
     companion object {
         const val CHANNEL_ID = "rest_completion"
         const val ACTION_REST_ALARM = "com.forge.workout.action.REST_COMPLETE"
+        const val ACTION_REST_RETRY = "com.forge.workout.action.REST_RETRY"
         const val EXTRA_WORKOUT_ID = "workout_id"
         const val EXTRA_DEADLINE = "deadline"
+        const val EXTRA_RETRY_ATTEMPT = "retry_attempt"
         const val NOTIFICATION_ID = 2041
         private const val ALARM_REQUEST_CODE = 2040
+        private const val RETRY_REQUEST_CODE = 2042
         private const val CONTENT_REQUEST_CODE = 2041
     }
 }

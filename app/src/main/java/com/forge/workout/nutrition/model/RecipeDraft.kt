@@ -89,7 +89,7 @@ object RecipeFactory {
                     }
                 }
                 val factor = NutritionMath.factor(snapshot, row.choice, quantity)
-                NutritionValidation.amount(snapshot, quantity, factor, row.choice.portionId, row.choice.label)
+                NutritionValidation.amount(snapshot, quantity, row.choice.unit, factor, row.choice.portionId, row.choice.label)
                 RecipeIngredientEntity(row.rowId, draft.id, index, snapshot.foodId, snapshot, quantity, row.choice.unit,
                     row.choice.portionId, row.choice.label, factor)
             } catch (_: IllegalArgumentException) {

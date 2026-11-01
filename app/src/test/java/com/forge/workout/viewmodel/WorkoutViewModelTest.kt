@@ -729,6 +729,8 @@ class WorkoutViewModelTest {
             return state.value.firstOrNull { it.workout.id == id }?.workout
         }
         override suspend fun workoutSet(id: Long): WorkoutSet? = sets.firstOrNull { it.id == id }
+        override suspend fun workoutExercise(id: Long): WorkoutExercise? = state.value.asSequence()
+            .flatMap { it.exercises.asSequence() }.firstOrNull { it.entry.id == id }?.entry
         override suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet> =
             detail.exercises.firstOrNull { it.entry.id == workoutExerciseId }?.sets.orEmpty()
         override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean {
@@ -780,6 +782,17 @@ class WorkoutViewModelTest {
             state.value = listOf(detail.copy(workout = detail.workout.copy(restEndTime = endTime)))
             savedRestDeadlines += endTime
             events += "rest"
+        }
+
+        override suspend fun adjustRestEndTime(workoutId: Long, expectedDeadline: Long, adjustedDeadline: Long, now: Long): Boolean {
+            delay(1)
+            before("rest")
+            val workout = state.value.firstOrNull { it.workout.id == workoutId }?.workout ?: return false
+            if (workout.endTime != null || workout.restEndTime != expectedDeadline || expectedDeadline <= now) return false
+            state.value = listOf(detail.copy(workout = workout.copy(restEndTime = adjustedDeadline)))
+            savedRestDeadlines += adjustedDeadline
+            events += "rest"
+            return true
         }
 
         override suspend fun consumeRestTimer(workoutId: Long, expectedDeadline: Long, now: Long): Boolean = synchronized(state) {

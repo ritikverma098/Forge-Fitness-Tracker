@@ -8,8 +8,13 @@ import com.forge.workout.nutrition.model.DiaryEntity
 import com.forge.workout.nutrition.model.FavoriteEntity
 import com.forge.workout.nutrition.model.FoodDetail
 import com.forge.workout.nutrition.model.FoodEntity
+import com.forge.workout.nutrition.model.FoodNutrientEntity
+import com.forge.workout.nutrition.model.FoodSourceType
 import com.forge.workout.nutrition.model.FoodUnit
 import com.forge.workout.nutrition.model.MealType
+import com.forge.workout.nutrition.model.NutritionMath
+import com.forge.workout.nutrition.model.RecipeEntity
+import com.forge.workout.nutrition.model.RecipeIngredientEntity
 import com.forge.workout.nutrition.repository.RoomNutritionRepository
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
@@ -53,6 +58,61 @@ class BundledCatalogServiceHostTest {
     }
 
     @After fun closeDatabase() { database.close() }
+
+    @Test fun `known superseded bundle upgrades reference units without changing historical or personal data`() = runBlocking<Unit> {
+        val manifest = ZipInputStream(application.assets.open(BUNDLED_ASSET)).use { zip ->
+            assertEquals("manifest.json", zip.nextEntry.name)
+            CatalogPackCodec.manifest(zip.readBytes(), 0L)
+        }
+        assertFalse("The corrected asset must have a new payload identity", manifest.pack.sha256 == OLD_BUNDLED_SHA)
+        val dao = database.nutritionDao()
+        // A compact installed-revision fixture exercises the trusted previous bundle identity.
+        dao.upsertCatalogPack(manifest.pack.copy(version = "2026-10-12", sha256 = OLD_BUNDLED_SHA, foodCount = 1))
+        dao.insertFoods(listOf(FoodEntity(id = JUICE_ID, name = "Historical juice reference",
+            sourceType = FoodSourceType.REFERENCE, packId = PACK_ID, source = "USDA branded label",
+            baseAmount = 100.0, baseUnit = FoodUnit.GRAM, gramsPerBase = 100.0)))
+        dao.insertNutrients(listOf(FoodNutrientEntity(JUICE_ID, "energy", "Energy", "kcal", 40.0)))
+        val original = requireNotNull(foods.food(JUICE_ID))
+        val snapshot = original.snapshot()
+        val diaryId = foods.saveDiary(DiaryEntity(day = "2026-10-29", meal = MealType.BREAKFAST,
+            foodId = JUICE_ID, snapshot = snapshot, quantity = 250.0, unit = FoodUnit.GRAM,
+            factor = 2.5, loggedAt = 1234L))
+        val recipeId = "custom:historical-juice-recipe"
+        val recipeFood = FoodDetail(FoodEntity(id = recipeId, name = "Historical juice recipe",
+            sourceType = FoodSourceType.RECIPE, baseAmount = 1.0, baseUnit = FoodUnit.SERVING))
+        foods.saveRecipe(RecipeEntity(recipeId, recipeFood.food.name, servings = 1.0), recipeFood,
+            listOf(RecipeIngredientEntity(recipeId = recipeId, orderIndex = 0, foodId = JUICE_ID,
+                snapshot = snapshot, quantity = 250.0, unit = FoodUnit.GRAM, factor = 2.5)))
+        foods.upsertFood(FoodDetail(FoodEntity(id = "custom:personal", name = "Personal food")))
+        foods.saveFavorite(FavoriteEntity(JUICE_ID, original.food.name, 1234L))
+        val diaryBefore = requireNotNull(foods.diaryEntry(diaryId))
+        val recipeBefore = requireNotNull(foods.recipe(recipeId))
+        val recipeFoodBefore = requireNotNull(foods.food(recipeId))
+        val customBefore = requireNotNull(foods.food("custom:personal"))
+        val favoritesBefore = foods.observeFavorites().first()
+
+        val upgraded = service().ensureBundled()
+        assertFalse("The known obsolete bundle must be replaced, not treated as an external revision", upgraded.alreadyInstalled)
+        assertEquals(manifest.pack.sha256, upgraded.pack.sha256)
+        val corrected = requireNotNull(foods.food(JUICE_ID))
+        assertEquals(original.food.rowId, corrected.food.rowId)
+        assertEquals(FoodUnit.MILLILITER, corrected.food.baseUnit)
+        assertEquals(100.0, corrected.food.millilitersPerBase!!, 0.0)
+        assertTrue(corrected.food.gramsPerBase == null)
+        val choices = NutritionMath.choices(corrected)
+        assertFalse(choices.any { it.unit == FoodUnit.GRAM })
+        val milliliters = choices.single { it.unit == FoodUnit.MILLILITER }
+        val calories = NutritionMath.scaled(corrected.snapshot(), NutritionMath.factor(corrected.snapshot(), milliliters, 250.0))
+            .single { it.code == "energy" }.value
+        assertEquals(100.0, requireNotNull(calories), 0.000001)
+        assertEquals(diaryBefore, foods.diaryEntry(diaryId))
+        assertEquals(recipeBefore, foods.recipe(recipeId))
+        assertEquals(recipeFoodBefore, foods.food(recipeId))
+        assertEquals(customBefore, foods.food("custom:personal"))
+        assertEquals(favoritesBefore, foods.observeFavorites().first())
+        assertTrue(service().ensureBundled().alreadyInstalled)
+        assertForeignKeys()
+    }
 
     @Test fun `missing bundled catalog seeds once and missing rows with a corrupt stored count can be repaired`() = runBlocking<Unit> {
         val manifest = ZipInputStream(application.assets.open(BUNDLED_ASSET)).use { zip ->
@@ -234,5 +294,7 @@ class BundledCatalogServiceHostTest {
     private companion object {
         const val PACK_ID = "usda-core"
         const val BUNDLED_ASSET = "nutrition/usda-core.forgefoods"
+        const val OLD_BUNDLED_SHA = "5b861595400a6e0a5c2eeb845962c6b2fe191bdb2c5a8138886d473aec93a3fb"
+        const val JUICE_ID = "usda:fdc:2598460"
     }
 }

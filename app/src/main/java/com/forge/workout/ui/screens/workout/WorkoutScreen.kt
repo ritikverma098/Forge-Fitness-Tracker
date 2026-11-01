@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
     detail: WorkoutDetail?, history: List<WorkoutDetail>, preferences: UserPreferences,
     viewModel: WorkoutViewModel, editing: Boolean, onStart: () -> Unit, onRoutines: () -> Unit,
     onAddExercise: () -> Unit, onFinish: () -> Unit, onDiscard: () -> Unit, onBack: () -> Unit,
-    onRestPreset: (Int) -> Unit, onLibrary: () -> Unit = {}
+    onRestPreset: (Int) -> Unit, onLibrary: () -> Unit = {}, onEditorStateReset: () -> Unit = {}
 ) {
     if(detail == null) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -51,8 +51,9 @@ import kotlinx.coroutines.withContext
         return
     }
     val workout = detail.workout
-    var name by rememberSaveable(workout.id) { mutableStateOf(workout.name) }
-    var notes by rememberSaveable(workout.id) { mutableStateOf(workout.notes) }
+    val acceptedIdentity by remember(viewModel, workout.id) { viewModel.workoutDrafts(workout.id) }.collectAsStateWithLifecycle()
+    var name by rememberWorkoutEditorText(workout.id, acceptedIdentity?.name ?: workout.name, viewModel.editorSessionId, onEditorStateReset)
+    var notes by rememberWorkoutEditorText(workout.id, acceptedIdentity?.notes ?: workout.notes, viewModel.editorSessionId, onEditorStateReset)
     var showFinish by rememberSaveable { mutableStateOf(false) }
     var showDiscard by rememberSaveable { mutableStateOf(false) }
     var showNotes by rememberSaveable(workout.id) { mutableStateOf(notes.isNotBlank()) }
@@ -140,14 +141,14 @@ import kotlinx.coroutines.withContext
                 // Room rebuilds graph objects on a set edit. Retain equal entries so unchanged headers can skip.
                 val retainedItem = remember(exercise) { exercise }
                 val retainedPrevious = remember(group.previous) { group.previous }
-                ExerciseLogCard(retainedItem, retainedPrevious, preferences, viewModel, workout.id, index, exercises.size, showPrevious)
+                ExerciseLogCard(retainedItem, retainedPrevious, preferences, viewModel, workout.id, index, exercises.size, showPrevious, onEditorStateReset)
             }
             items(group.sets, key = { "set_${it.id}" }, contentType = { "exercise_set" }) { set ->
                 val retainedSet = remember(set) { set }
                 val previous = group.previousSets.getOrNull(set.setNumber - 1) ?: group.previousSets.lastOrNull()
                 val retainedPrevious = remember(previous) { previous }
                 ExerciseSetRow(retainedSet, exercise.exercise.exerciseType, retainedPrevious, preferences, viewModel,
-                    workout.id, editing, showPrevious)
+                    workout.id, editing, showPrevious, onEditorStateReset)
             }
             item(key = "exercise_${exercise.entry.id}_add_set", contentType = "exercise_footer") {
                 ExerciseLogSurface(bottom = true, modifier = Modifier.padding(bottom = 16.dp)) {
@@ -203,10 +204,11 @@ private data class ExerciseLogGroup(
 }
 
 // Retain the header's name so composition traces can distinguish it from individually lazy set rows.
-@Composable private fun ExerciseLogCard(item: WorkoutExerciseDetail, previous: WorkoutExerciseDetail?, preferences: UserPreferences, viewModel: WorkoutViewModel, workoutId: Long, index: Int, count: Int, showPrevious: Boolean) {
+@Composable private fun ExerciseLogCard(item: WorkoutExerciseDetail, previous: WorkoutExerciseDetail?, preferences: UserPreferences, viewModel: WorkoutViewModel, workoutId: Long, index: Int, count: Int, showPrevious: Boolean, onEditorStateReset: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var showNotes by rememberSaveable(item.entry.id) { mutableStateOf(item.entry.notes.isNotBlank()) }
-    var notes by rememberSaveable(item.entry.id) { mutableStateOf(item.entry.notes) }
+    val acceptedNotes by remember(viewModel, item.entry.id) { viewModel.exerciseNoteDrafts(item.entry.id) }.collectAsStateWithLifecycle()
+    var notes by rememberWorkoutEditorText(item.entry.id, acceptedNotes ?: item.entry.notes, viewModel.editorSessionId, onEditorStateReset)
     var remove by remember { mutableStateOf(false) }
     LaunchedEffect(workoutId,item.entry.id,notes.length <= 5000) {
         viewModel.inputValidity(workoutId,"notes_${item.entry.id}",notes.length <= 5000)
@@ -246,10 +248,18 @@ private data class ExerciseLogGroup(
 @Composable private fun ExerciseSetRow(
     set: WorkoutSet, type: ExerciseType, previous: WorkoutSet?, preferences: UserPreferences,
     viewModel: WorkoutViewModel, workoutId: Long, editing: Boolean, showPrevious: Boolean,
+    onEditorStateReset: () -> Unit,
 ) {
+    val accepted by remember(viewModel, set.id) { viewModel.numericDrafts(set.id) }.collectAsStateWithLifecycle()
+    val editorSet = remember(set, accepted) { set.copy(
+        weight = accepted[SetField.WEIGHT] ?: set.weight,
+        reps = accepted[SetField.REPS]?.toInt() ?: set.reps,
+        duration = accepted[SetField.DURATION]?.toInt() ?: set.duration,
+        distance = accepted[SetField.DISTANCE] ?: set.distance,
+    ) }
     ExerciseLogSurface {
         Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-            SetRow(set,type,previous,preferences.weightUnit,showPrevious,
+            SetRow(editorSet,type,previous,preferences.weightUnit,showPrevious,
                 onValueChange = { field, value -> viewModel.setValue(set.id,field,value) },
                 onValidityChange = { field, valid ->
                     val suffix = if(field == SetField.WEIGHT) "weight" else field.name
@@ -257,7 +267,8 @@ private data class ExerciseLogGroup(
                 },
                 onTypeChange = { viewModel.setType(set.id,it) },
                 onCompleteChange = { viewModel.completeSet(set.id,it,workoutId,preferences.restSeconds,editing) },
-                onDelete = { viewModel.deleteSet(set.id) })
+                onDelete = { viewModel.deleteSet(set.id) },
+                editorSessionId = viewModel.editorSessionId, onEditorStateReset = onEditorStateReset)
         }
     }
 }

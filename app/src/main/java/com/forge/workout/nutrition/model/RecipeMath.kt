@@ -17,7 +17,7 @@ object RecipeMath {
     fun totals(ingredients: List<RecipeIngredientEntity>): List<NutrientValue> {
         require(ingredients.isNotEmpty() && ingredients.size <= 500) { "Add between 1 and 500 recipe ingredients." }
         val snapshots = ingredients.map { ingredient ->
-            NutritionValidation.amount(ingredient.snapshot, ingredient.quantity, ingredient.factor,
+            NutritionValidation.amount(ingredient.snapshot, ingredient.quantity, ingredient.unit, ingredient.factor,
                 ingredient.portionId, ingredient.portionLabel)
             ingredient.snapshot.nutrients.associateBy { it.code }
         }

@@ -313,6 +313,8 @@ class WorkoutPerformanceHostTest {
 
         override fun observeWorkouts(): Flow<List<WorkoutDetail>> = state
         override suspend fun workout(id: Long): Workout? = state.value.firstOrNull { it.workout.id == id }?.workout
+        override suspend fun workoutExercise(id: Long): WorkoutExercise? = state.value.asSequence()
+            .flatMap { it.exercises.asSequence() }.firstOrNull { it.entry.id == id }?.entry
         override suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean = state.value
             .firstOrNull { it.workout.id == workoutId }?.exercises?.any { it.exercise.id == exerciseId } == true
         override suspend fun workoutSet(id: Long): WorkoutSet? = state.value.asSequence()
@@ -342,6 +344,7 @@ class WorkoutPerformanceHostTest {
         override suspend fun deleteSet(id: Long) = error("Unused operation")
         override suspend fun updateExerciseNotes(workoutExerciseId: Long, notes: String) = error("Unused operation")
         override suspend fun setRestEndTime(workoutId: Long, endTime: Long?) = error("Unused operation")
+        override suspend fun adjustRestEndTime(workoutId: Long, expectedDeadline: Long, adjustedDeadline: Long, now: Long): Boolean = error("Unused operation")
         override suspend fun consumeRestTimer(workoutId: Long, expectedDeadline: Long, now: Long): Boolean = error("Unused operation")
         override suspend fun saveRoutine(id: Long?, name: String): Long = error("Unused operation")
         override suspend fun addRoutineExercise(routineId: Long, exerciseId: Long) = error("Unused operation")

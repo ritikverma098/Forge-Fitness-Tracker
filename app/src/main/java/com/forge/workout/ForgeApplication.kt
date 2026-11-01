@@ -7,6 +7,7 @@ import com.forge.workout.repository.RoomWorkoutRepository
 import com.forge.workout.repository.WorkoutRepository
 import com.forge.workout.backup.BackupRepository
 import com.forge.workout.backup.RoomBackupRepository
+import com.forge.workout.backup.RestoreStartupGate
 import com.forge.workout.nutrition.repository.NutritionRepository
 import com.forge.workout.nutrition.repository.RoomNutritionRepository
 import com.forge.workout.nutrition.catalog.AndroidFoodCatalogService
@@ -28,9 +29,35 @@ open class ForgeApplication : Application() {
     open val nutritionRepository: NutritionRepository by lazy { RoomNutritionRepository(database) }
     open val catalogs: FoodCatalogService by lazy { AndroidFoodCatalogService(this, database) }
     open val preferences: PreferencesRepository by lazy { PreferencesRepository(this) }
-    open val backups: BackupRepository by lazy { RoomBackupRepository(database) { preferences.preferences.first() } }
+    open val backups: BackupRepository by lazy {
+        RoomBackupRepository(database, preferencesRestorer = preferences::replace) { preferences.preferences.first() }
+    }
     private val restScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val nutritionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var restorePaused = false
+    private val startup by lazy {
+        RestoreStartupGate(nutritionScope, {
+            backups.recoverInterruptedRestore()
+            if (restorePaused) {
+                try { restTimers.resumeAfterRestore() }
+                finally { workoutEnergy.resumeAfterRestore() }
+                restorePaused = false
+            }
+            // Cold-start alarm delivery must claim a due timer before resume reconciliation.
+            restTimers.start()
+        }, { Log.e("ForgeRestore", "Interrupted restore recovery failed", it) })
+    }
+    val startupState get() = startup.also { it.start() }.state
+    suspend fun awaitStartup() { startup.awaitReady() }
+    fun retryStartup() { startup.retry() }
+
+    suspend fun pauseForRestore() {
+        workoutEnergy.pauseForRestore()
+        restorePaused = true
+        restTimers.pauseForRestore()
+    }
+
+    suspend fun resumeAfterRestoreAttempt() { startup.verifyRecovery() }
     val workoutEnergy: WorkoutEnergyCoordinator by lazy {
         WorkoutEnergyCoordinator(nutritionRepository, nutritionScope,
             onError = { Log.e("ForgeWorkoutEnergy", "Workout estimate refresh failed", it) })
@@ -46,6 +73,6 @@ open class ForgeApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         AndroidRestAlerts(this).createChannel()
-        restTimers.start()
+        startup.start()
     }
 }

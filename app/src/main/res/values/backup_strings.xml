@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="backup_title">Backup &amp; restore</string>
-    <string name="backup_description">Save your workouts, exercise library, routines, personal nutrition data and settings as a JSON file. Your active workout is included; reference food catalogs stay on this device.</string>
+    <string name="backup_description">Create a local JSON backup of your workouts, exercises, routines, personal nutrition and settings. Your active workout is included; reference food catalogs are excluded. Android automatic backup and device transfer are not supported. Use Create backup to keep a file for reinstalling Forge or moving phones.</string>
     <string name="backup_create">Create backup</string>
     <string name="backup_restore">Restore backup</string>
     <string name="backup_file_name">forge-backup-%1$s.json</string>

@@ -491,7 +491,6 @@ class BackupViewModelHostTest {
 
     private fun model(beforeRestore: suspend () -> Unit = {}, afterRestoreAttempt: suspend () -> Unit = {}) = BackupViewModel(
         backupRepository = repository,
-        preferences = preferences,
         documents = documents,
         flushBeforeOperation = { flushCount++; allowFlush },
         onRestored = { restoredCallbacks++ },
@@ -519,7 +518,7 @@ class BackupViewModelHostTest {
         repository.cancelRestoreAfterImport = !cancelBeforeImport
         var preferencesObservedBeforeRollback: UserPreferences? = null
         repository.onCancelledRestore = {
-            // This runs inside the cancelled fake Room transaction, before the ViewModel rolls DataStore back.
+            // This runs inside the cancelled fake transaction before repository compensation.
             preferencesObservedBeforeRollback = preferences.preferences.first()
         }
         val model = model()
@@ -575,7 +574,7 @@ class BackupViewModelHostTest {
             favorites = listOf(FavoriteEntity(custom.food.id, custom.food.name)))
     }
 
-    private class FakeBackupRepository(var stored: ForgeBackup) : BackupRepository {
+    private inner class FakeBackupRepository(var stored: ForgeBackup) : BackupRepository {
         var snapshotCount = 0
         var restoreCount = 0
         var snapshotGate: CompletableDeferred<Unit>? = null
@@ -600,17 +599,22 @@ class BackupViewModelHostTest {
             restoreStarted.complete(Unit)
             restoreGate?.await()
             if (failRestoreBeforeImport) throw IOException("Storage unavailable")
+            val previous = preferences.preferences.first()
             try {
                 // Cancel only the ViewModel's transaction coroutine; the test's parent remains active.
                 if (cancelRestoreBeforeImport) currentCoroutineContext().cancel()
+                withContext(NonCancellable) { preferences.replace(backup.preferences) }
                 beforeCommit()
                 if (cancelRestoreAfterImport) currentCoroutineContext().cancel()
                 currentCoroutineContext().ensureActive()
                 if (failRestoreAfterImport) throw IOException("Commit failed")
                 stored = backup
-            } catch (cancelled: CancellationException) {
-                withContext(NonCancellable) { onCancelledRestore?.invoke() }
-                throw cancelled
+            } catch (failure: Exception) {
+                withContext(NonCancellable) {
+                    if (failure is CancellationException) onCancelledRestore?.invoke()
+                    preferences.replace(previous)
+                }
+                throw failure
             }
         }
     }

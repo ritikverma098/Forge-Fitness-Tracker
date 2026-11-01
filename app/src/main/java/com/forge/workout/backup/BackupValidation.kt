@@ -62,6 +62,7 @@ internal object BackupValidation {
         require(backup.metadata.map { it.key }.distinct().size == backup.metadata.size) { "Duplicate metadata key." }
         backup.metadata.forEach {
             require(it.key.isNotBlank() && it.key.length <= 100 && it.value.length <= 5000) { "Invalid metadata." }
+            require(!RestorePreferencesJournal.isInternal(it.key)) { "Internal recovery metadata is not portable." }
             require(it.key != SEED_KEY || it.value == "seeded") { "Invalid seed metadata." }
         }
         require(backup.preferences.restSeconds in PreferencesRepository.REST_PRESETS) { "Invalid default rest timer." }

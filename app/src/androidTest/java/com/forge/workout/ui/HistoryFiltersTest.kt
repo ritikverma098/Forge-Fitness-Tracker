@@ -1,5 +1,8 @@
 package com.forge.workout.ui
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
@@ -101,7 +104,8 @@ class HistoryFiltersTest {
         waitForTag("history_name_search")
         awaitMatchingNames("Alpha curls")
         compose.onNodeWithTag("history_clear_filters").performClick()
-        compose.onNodeWithTag("history_name_search").assertTextEquals("")
+        compose.onNodeWithTag("history_name_search").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         awaitMatchingNames("Beta legs", "Alpha presses", "Alpha curls", ordered = false)
         assertFalse(historyModel().selectedFilters.value.hasFilters)
         compose.onNodeWithTag("history_workout_list").performScrollToNode(hasText("Beta legs", substring = false))

@@ -1,4 +1,5 @@
 <resources>
+    <string name="restore_recovery_failed">Forge could not recover an interrupted restore. Try again to safely reopen your data.</string>
     <string name="backup_created">Local backup created</string>
     <string name="backup_restored">Backup restored</string>
     <string name="backup_write_failed">Could not save the backup. Check the selected location and try again.</string>

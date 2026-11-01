@@ -1,6 +1,6 @@
 # Offline food catalog
 
-The bundled catalog contains **13,324 real USDA records**, **993,304 nutrient rows** and **36,142 source portions**. Sources are 7,793 SR Legacy foods, 5,332 FNDDS 2021–2023 foods, and 199 branded records. Exact-name/brand duplicates and repeated branded GTINs were excluded (101 source records). Eighteen portions without a positive source gram equivalent were excluded; missing nutrients were never replaced with zero.
+The bundled catalog contains **13,324 real USDA records**, **993,304 nutrient rows** and **36,331 source portions**. Sources are 7,793 SR Legacy foods, 5,332 FNDDS 2021–2023 foods, and 199 branded records. Exact-name/brand duplicates and repeated branded GTINs were excluded (101 source records). Eighteen portions without a positive source gram equivalent were excluded; missing nutrients were never replaced with zero.
 
 USDA FoodData Central is public-domain/CC0 data. Attribution: **U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.** See [licensing/API guide](https://fdc.nal.usda.gov/api-guide/), [downloads](https://fdc.nal.usda.gov/download-datasets/), [SR documentation](https://www.ars.usda.gov/Arsuserfiles/80400525/Data/SR-Legacy/SR-Legacy_Doc.Pdf) and [FNDDS documentation](https://www.ars.usda.gov/ARSUserFiles/80400530/pdf/fndds/2021_2023_FNDDS_Doc.pdf).
 
@@ -8,14 +8,16 @@ The Indian filter is a curated grouping of USDA-listed dishes and common kitchen
 
 ## Reproduce
 
-Download the official [SR Legacy CSV archive](https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_csv_2018-04.zip) and [FNDDS JSON archive](https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_survey_food_json_2024-10-31.zip). Branded source samples are preserved under `source-samples/`; the API's public DEMO_KEY was used only during preprocessing and is not in the application.
+Download the official [SR Legacy CSV archive](https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_csv_2018-04.zip) and [FNDDS JSON archive](https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_survey_food_json_2024-10-31.zip). Branded source samples are preserved under `source-samples/`; the API's public DEMO_KEY was used only during preprocessing and is not in the application. `branded-200-with-units.json` preserves the original abridged IDs, nutrients and brand fields, enriched with `servingSize`, `servingSizeUnit` and `householdServingFullText` from the full official records retrieved on 31 October 2026. All 200 exact IDs were checked in ten documented `/foods?fdcIds=...&format=full` batches of 20. The original abridged file is retained for provenance, but deliberately cannot be imported without unit metadata. Full official gram and mL examples are included as regression fixtures.
 
 ```text
-python tools/catalog/import_usda.py --sr /path/to/sr.zip --survey /path/to/survey.zip --branded tools/catalog/source-samples/branded-200.json --branded-detail tools/catalog/source-samples/branded-demo-details.json --output app/src/main/assets/nutrition/usda-core.forgefoods
+python tools/catalog/import_usda.py --sr /path/to/sr.zip --survey /path/to/survey.zip --branded tools/catalog/source-samples/branded-200-with-units.json --branded-detail tools/catalog/source-samples/branded-demo-details.json --version 2026-10-31 --output app/src/main/assets/nutrition/usda-core.forgefoods
 python -m unittest discover -s tools/catalog -p "test_*.py"
 ```
 
-The standard-library pipeline keeps source FDC IDs, raw/cooked names, full available nutrient units, and source-defined gram portions. Standardized `foodNutrients` are per 100g; branded `labelNutrients` are per serving and are not mixed into that basis. No density is invented for mL servings. Published Atwater kcal are used only when the ordinary source kcal field is absent. Each generated report records input hashes, counts, exclusions, payload/ZIP hashes and size. The current asset is approximately 3.8 MB compressed and 77 MB of structured reference data before database indexing.
+The standard-library pipeline keeps source FDC IDs, raw/cooked names, full available nutrient units, and source-defined portions. Generic `foodNutrients` are per 100 g; branded values use 100 g or 100 mL according to their submitted unit, as documented by [USDA](https://fdc.nal.usda.gov/GBFPD_Documentation/). Branded `labelNutrients` are per serving and are not mixed into that basis. Fourteen bundled foods are native mL foods with no invented gram conversion; 189 additional native label portions are now available. No nutrient values, existing names/brands or stable IDs changed in this correction. Published Atwater kcal are used only when the ordinary source kcal field is absent. Each generated report records input hashes, counts, exclusions, payload/ZIP hashes and size. The current asset is approximately 3.8 MB compressed and 77 MB of structured reference data before database indexing.
+
+Initialization upgrades the specifically recognized old bundled payload to this correction. Arbitrary complete explicitly imported revisions retain the existing preservation policy. Catalog replacement does not rewrite frozen diary or recipe-ingredient snapshots; correcting an older logged entry remains an explicit user action.
 
 ## Pack format
 

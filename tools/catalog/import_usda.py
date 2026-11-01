@@ -98,10 +98,19 @@ def json_foods(path, source):
 
 def full_food(raw, source):
     brand = raw.get('brandName') or raw.get('brandOwner') or ''
+    branded = bool(brand) or raw.get('dataType') == 'Branded' or raw.get('foodClass') == 'Branded' or 'branded' in source.lower()
+    unit = str(raw.get('servingSizeUnit', '')).strip().lower()
+    # USDA standardizes branded nutrient values per 100 units of the submitted
+    # serving measure (g or mL). Abridged records omit this required metadata.
+    if branded and unit not in ('g', 'grm', 'grams', 'ml', 'mlt'):
+        raise ValueError(f"Branded food {raw['fdcId']} has no supported reference unit; obtain its full USDA record")
+    volume_basis = branded and unit in ('ml', 'mlt')
     notes = raw.get('footnote', '')
     if raw.get('brandName') and raw.get('brandOwner'):
         notes = '\n'.join(x for x in (notes, 'Manufacturer: ' + raw['brandOwner']) if x)
     food = make_food(raw['fdcId'], raw['description'], source, brand, notes)
+    if volume_basis:
+        food.update(baseUnit='MILLILITER', gramsPerBase=None, millilitersPerBase=100.0)
     nutrients = []
     for row in raw.get('foodNutrients', []):
         spec = row.get('nutrient', row)
@@ -112,17 +121,18 @@ def full_food(raw, source):
         grams = amount(row.get('gramWeight'))
         label = row.get('portionDescription') or row.get('modifier') or ''
         # A source gramWeight applies to its entire named source portion, not to 100g or arbitrary mL.
-        if grams and label and not str(label).isdigit():
+        if grams and label and not str(label).isdigit() and not volume_basis:
             food['portions'].append(dict(id='fdc:' + str(row['id']), label=label[:250], baseQuantity=grams,
                                          grams=grams, milliliters=None, source='USDA source-defined portion'))
+        elif grams and volume_basis:
+            AUDIT['gram_portions_without_volume_equivalent_not_offered'] += 1
     serving = amount(raw.get('servingSize'))
-    unit = str(raw.get('servingSizeUnit', '')).lower()
     if serving and unit in ('g', 'grm', 'grams'):
         food['portions'].append(dict(id='label', label=(raw.get('householdServingFullText') or f'{serving:g} g serving')[:250],
                                      baseQuantity=serving, grams=serving, milliliters=None, source='USDA branded label serving'))
-    # mL label portions are never equated to grams without a source-provided density.
-    if serving and unit in ('ml', 'mlt'):
-        AUDIT['ml_label_portions_without_density_not_offered'] += 1
+    if serving and volume_basis:
+        food['portions'].append(dict(id='label', label=(raw.get('householdServingFullText') or f'{serving:g} mL serving')[:250],
+                                     baseQuantity=serving, grams=None, milliliters=serving, source='USDA branded label serving'))
     return food
 
 def build(args):

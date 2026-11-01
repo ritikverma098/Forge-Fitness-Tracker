@@ -281,11 +281,17 @@ class CatalogImportHostTest {
         assertEquals(13_324, result.added)
         assertEquals(0, result.updated)
         assertEquals(0, result.removed)
-        assertEquals("5b861595400a6e0a5c2eeb845962c6b2fe191bdb2c5a8138886d473aec93a3fb", result.pack.sha256)
-        assertEquals(76_935_451L, result.pack.payloadBytes)
+        assertEquals("af71a9e8015dbebd7be19c2f9fcee68c22746c10cc0dcc1bbc776071f1c7fabc", result.pack.sha256)
+        assertEquals(76_959_257L, result.pack.payloadBytes)
         assertEquals(13_324, count("nutrition_foods"))
         assertEquals(993_304, count("nutrition_food_nutrients"))
-        assertEquals(36_142, count("nutrition_food_portions"))
+        assertEquals(36_331, count("nutrition_food_portions"))
+        val pageCount = database.openHelper.readableDatabase.query("PRAGMA page_count").use { it.moveToFirst(); it.getLong(0) }
+        val pageSize = database.openHelper.readableDatabase.query("PRAGMA page_size").use { it.moveToFirst(); it.getLong(0) }
+        val allocatedBytes = pageCount * pageSize
+        println("F05 catalog preflight: allocatedDatabaseBytes=$allocatedBytes; cloudQuotaBytes=${25L * 1024 * 1024}")
+        assertTrue("A full reference catalog must not be sent as an automatic cloud backup payload",
+            allocatedBytes > 25L * 1024 * 1024)
         assertEquals(7_793, sourceCount("USDA SR Legacy (2018)"))
         assertEquals(5_332, sourceCount("USDA FNDDS 2021–2023"))
         assertEquals(199, sourceCount("USDA branded label"))
@@ -318,6 +324,18 @@ class CatalogImportHostTest {
         assertEquals("5 nuggets (85g)", label.label)
         assertEquals(85.0, label.grams!!, 0.0)
         assertEquals(164.9, nutrient(branded, NutrientCodes.ENERGY) * label.baseQuantity / branded.food.baseAmount, 0.000001)
+        val juice = requireNotNull(foods.food("usda:fdc:2598460"))
+        assertEquals(FoodUnit.MILLILITER, juice.food.baseUnit)
+        assertNull(juice.food.gramsPerBase)
+        assertEquals(100.0, juice.food.millilitersPerBase!!, 0.0)
+        val choices = NutritionMath.choices(juice)
+        assertFalse(choices.any { it.unit == FoodUnit.GRAM })
+        val volume = choices.single { it.unit == FoodUnit.MILLILITER }
+        assertEquals(100.0, nutrient(juice, NutrientCodes.ENERGY) *
+            NutritionMath.factor(juice.snapshot(), volume, 250.0), 0.000001)
+        val juiceLabel = juice.portions.single { it.id == "label" }
+        assertEquals(250.0, juiceLabel.milliliters!!, 0.0)
+        assertNull(juiceLabel.grams)
         assertTrue(foods.searchFoods("chapati", region = "IN").any { it.id == "usda:fdc:2707713" })
 
         // These names/aliases and stable IDs are verified in the packaged USDA payload itself.

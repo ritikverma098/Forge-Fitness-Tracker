@@ -35,6 +35,7 @@ fun userMessage(context: Context, error: Throwable): String = context.getString(
         "Set was not found." -> R.string.validation_set_missing
         "A set cannot be moved to another exercise." -> R.string.validation_move_set
         "A finished workout cannot start a rest timer." -> R.string.validation_rest_finished
+        "Recovered workout changes need review before retrying." -> R.string.workout_changes_recovered_review
         "This exercise is already in this routine." -> R.string.validation_duplicate_routine_exercise
         "Routine exercise was not found." -> R.string.validation_routine_exercise_missing
         else -> R.string.error_generic

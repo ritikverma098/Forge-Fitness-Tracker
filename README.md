@@ -1,4 +1,4 @@
-# Forge 1.3.1
+# Forge 1.3.2
 
 [Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
 
@@ -10,13 +10,15 @@ Training and nutrition work offline, including the bundled food catalog. There a
 
 ## Download
 
-[Download Forge 1.3.1 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.1/Forge-1.3.1.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+[Download Forge 1.3.2 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.2/Forge-1.3.2.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+
+Version 1.3.2 is a focused reliability update for workout drafts, rest alerts, nutrition units and backup recovery. See the [changelog](CHANGELOG.md) and [verification report](docs/reliability-1.3.2.md).
 
 The downloadable APK uses the optimized release build, signed with the existing **development/debug key for sideload testing**. It does not use a production Play Store signing key. Android requires the same signing certificate to update an installed copy; back up your data before changing installations. The source project's normal `assembleRelease` remains unsigned, and no signing credentials are included.
 
 ## Screenshots
 
-Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.1 retains these layouts.
+Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.2 retains these layouts.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -26,7 +28,7 @@ Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Ver
 
 ## Development status
 
-The **1.3.0 feature implementation is complete**, with stability fixes in **1.3.1**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
+The **1.3.0 feature implementation is complete**, with stability fixes in **1.3.1** and a focused **1.3.2 reliability update**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and additional regional food packs where suitable redistribution rights and source data are available. Scope and timing are undecided. No additional regional packs are hosted with this release.
 
@@ -46,6 +48,17 @@ These fixes passed host and emulator regression checks without clearing existing
 - Catalog initialization preserves a complete explicitly imported revision, including arbitrary version labels. An incomplete external pack requires explicit reimport.
 - Backups accept Unicode exercise names according to Room's stored uniqueness rules, preserving existing names and relationships.
 - Backup row IDs are bounded before restore, and transactional sequence repair recovers allocation after earlier extreme-ID imports. Room schema 4 and backup format 3 are unchanged.
+
+### Reliability fixes in 1.3.2
+
+- Recover pending workout field assignments after process recreation, retaining exact weights and blocking Finish until unresolved saves are handled.
+- Correct branded USDA gram/mL reference units and label servings. Upgrade only the known retired bundle; preserve historical diary/recipe snapshots and explicitly imported catalog revisions.
+- Make rest adjustments atomic against expiry/Skip and keep expiry delivery alive across a receiver timeout or foreground cancellation, with bounded original-deadline retries.
+- Reject inconsistent unnamed nutrition quantities/factors in backups while retaining frozen historical named portions.
+- Recover interrupted Room/DataStore restores through an internal journal before normal app or alarm use. Keep schema 4 and portable backup format 3 unchanged.
+- Make the local-only backup policy explicit. Use portable backup files before reinstalling or moving devices; Android automatic backup/device transfer is unsupported.
+
+See [finding-by-finding verification and limitations](docs/reliability-1.3.2.md). History-wide query and dense-recipe optimizations remain deferred until measurements justify changes.
 
 ## Build and install
 
@@ -92,7 +105,7 @@ Dependencies require internet for the first build. The installed application inc
 
 ### Food sources and catalog packs
 
-The bundled USDA FoodData Central catalog contains **13,324 foods, 993,304 nutrient rows and 36,142 portions**: 7,793 SR Legacy, 5,332 FNDDS, and 199 branded foods after documented exclusions. The Indian filter contains 655 curated USDA entries and kitchen ingredients; it is not an ICMR-NIN database. No proprietary, Samsung Health or Open Food Facts data is bundled.
+The bundled USDA FoodData Central catalog contains **13,324 foods, 993,304 nutrient rows and 36,331 portions**: 7,793 SR Legacy, 5,332 FNDDS, and 199 branded foods after documented exclusions. The Indian filter contains 655 curated USDA entries and kitchen ingredients; it is not an ICMR-NIN database. No proprietary, Samsung Health or Open Food Facts data is bundled.
 
 Attribution: U.S. Department of Agriculture, Agricultural Research Service, FoodData Central. The public-domain/CC0 source records, reproducible standard-library importer and exclusions are documented in [tools/catalog/README.md](tools/catalog/README.md). Running the importer also generates a report with source hashes, counts and exclusions. The compressed initial pack is approximately 3.8 MB; its structured payload is approximately 77 MB before Room indexing, so installation needs additional free storage.
 
@@ -143,11 +156,13 @@ Deleting a referenced custom exercise archives it to preserve past sessions. Arc
 
 ## Backup and restore
 
+Forge supports **manual local backups only**. Android automatic cloud backup and device-to-device app-data transfer are disabled. Use Settings → Backup & restore → Create backup to keep a file before reinstalling Forge or moving phones. The reinstallable food catalog shares Room with personal data and exceeds Android's [25 MB cloud Auto Backup quota](https://developer.android.com/identity/data/autobackup). Platform rules exclude app storage; the portable format below keeps personal data independent of that catalog.
+
 Settings exports/opens local UTF-8 JSON documents through Android's standard file picker. New backups use **format 3 / database layout 4**, limited to 32 MiB. They include exercises/archive state, workouts/active rest deadline, sets/types, routines, seed metadata and DataStore preferences, plus personal foods/portions/nutrients, recipes/ingredient snapshots, diary snapshots, favorites, effective-date goals, body weights, nutrition settings and workout calorie records/manual overrides. Canonical kg, stable food IDs and user row IDs are preserved; internal catalog search row IDs are regenerated. Exact repeated snapshots share a registry to keep long histories portable.
 
 Reference catalog packs are not copied into personal backups, and installed packs remain intact on restore. Captured diary/recipe details remain readable if their source catalog is absent. A full restore replaces personal nutrition and workout data after a scope/count preview. Older **format 1 / database 2** and **format 2 / database 3** files retain their workout-only scope; existing independent nutrition records are kept, while estimates linked to replaced workouts are regenerated. Format 1 sets default to Working Set.
 
-Import validates structure, versions, relationships, snapshot references, types and values before confirmation. Room replaces rows in one transaction; if it fails after preferences were imported, previous preferences are restored. Pending workout/nutrition writes are drained first. A committed restore rebuilds navigation and editor drafts while shared repositories keep observing the same Room instance. Rest delivery and workout-energy reconciliation pause across restore, then reconcile committed or rolled-back data. A failed restore leaves existing data usable; no database-file replacement, destructive recreation or manual app restart is required.
+Import validates structure, versions, relationships, snapshot references, types and values before confirmation. Room and settings restoration use a durable internal journal: transaction rollback or process interruption recovers matching previous settings before normal startup. If recovery storage is unavailable, instructions and records remain intact and Forge offers Retry. Pending workout/nutrition writes are drained first. A committed restore rebuilds navigation and editor drafts while shared repositories keep observing the same Room instance. Rest delivery and workout-energy reconciliation pause across restore, then reconcile committed or rolled-back data. No database-file replacement, destructive recreation or manual app restart is required.
 
 Numeric user row IDs must be between 1 and 9,007,199,254,740,991, preserving exact portable JSON values and ample SQLite allocation headroom. Unsupported IDs are rejected before mutation. A successful restore rebases affected AUTOINCREMENT sequences to surviving/restored rows within the same transaction, retaining installed reference foods and leaving independent nutrition sequences unchanged for workout-only backups.
 
@@ -163,7 +178,7 @@ com.forge.workout/
   data/seed/        First-install exercise catalog
   model/            Entities and relational snapshots
   repository/       Repository contract and Room implementation
-  backup/           Validated JSON codec, document I/O and transactional restore
+  backup/           Validated JSON codec, document I/O, restore journal and startup recovery
   preferences/      DataStore settings and canonical unit conversion
   rest/             Deadline coordinator, Android alarm/notification adapter and bounded receiver
   nutrition/model/  Food/diary/recipe/goal/weight entities, scaling and estimate calculations
@@ -179,7 +194,7 @@ com.forge.workout/
   utils/            Validation, statistics, PR detection, localized errors
 ```
 
-Workout mutations are serialized. Finishing waits for pending writes; sessions are restored from Room after configuration changes and process recreation. History and progress reuse the application's observed workout graph; filtering and progress indexing/calculations run off the UI thread, without database queries per keystroke. Picker usage uses a focused aggregate Room query. The database contains no fake workout history.
+Workout mutations are serialized. Finishing waits for pending writes; sessions are restored from Room after configuration changes and process recreation. Accepted field assignments retain exact values and persistence acknowledgements through saved state until resolved; structural actions are not replayed. History and progress reuse the application's observed workout graph; filtering and progress indexing/calculations run off the UI thread, without database queries per keystroke. Picker usage uses a focused aggregate Room query. The database contains no fake workout history.
 
 Workout headers and set rows use individually keyed lazy items so revealing an exercise does not construct all its off-screen editors. Timer updates remain isolated from the list. One retained bottom navigation bar follows the destination's existing fade/predictive Back transition, with measured space reserved in main screens and hidden input excluded on child screens.
 
@@ -202,6 +217,8 @@ Unit tests cover calculations, personal records, exercise/set validation, queued
 The stability update was verified on 28 October 2026 with **463 unit/Robolectric tests passing with no failures, errors or skips**, debug and instrumentation APK builds, and zero lint findings. Android 17/API 37 emulator checks also passed for workout editing/rest controls in both themes, predictive Back commit/cancel, routine/custom-exercise flows, immediate navigation after restore, catalog progress with blocked reads, and 14 Room/repository cases. Instrumentation explicitly uses Espresso 3.7.0 for Android 17 compatibility.
 
 The 1.3.1 bug fixes were verified on 29 October 2026 with **513 unit/Robolectric tests**, **14 emulator tests** and **6 catalog pipeline tests** passing, plus debug/test APK builds and lint. New regressions cover saved unit/draft conversion, cleared quantities, failed-write retries, duplicate exercise selection, imported catalog preservation, Unicode names, ID bounds and transactional sequence recovery. Native restore tests exercise the same Activity immediately afterward; existing installed QA data was retained.
+
+Version 1.3.2 passed **601 unit/Robolectric tests**, **47 Android 17 functional tests** and **10 importer tests**, with debug/test and optimized builds plus lint. The 47 functional tests used the debug build. Separate native fault probes established the restore/timer defects and verified their corrections using actual process death. Exact evidence, release-APK checks, excluded performance measurements and phone-verification limits are recorded in [the reliability report](docs/reliability-1.3.2.md).
 
 System traces identified large exercise/header prefetch work and repeated bottom-bar construction; focused changes reduce those costs. Emulator debug frame timings still contain spikes, so this is not a claim of uniformly smooth physical-device performance. Verify idle-then-drag scrolling, Back transitions and alert timing on a phone. Testing preserved installed user data; fresh-data restore cases used isolated test databases.
 

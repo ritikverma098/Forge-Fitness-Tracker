@@ -8,6 +8,7 @@ import com.forge.workout.model.RoutineDetail
 import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.model.Workout
 import com.forge.workout.model.WorkoutSet
+import com.forge.workout.model.WorkoutExercise
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -18,6 +19,7 @@ interface WorkoutRepository {
     fun observeWorkouts(): Flow<List<WorkoutDetail>>
     fun observeRoutines(): Flow<List<RoutineDetail>>
     suspend fun workout(id: Long): Workout?
+    suspend fun workoutExercise(id: Long): WorkoutExercise?
     suspend fun workoutSet(id: Long): WorkoutSet?
     suspend fun workoutExerciseSets(workoutExerciseId: Long): List<WorkoutSet>
     suspend fun hasWorkoutExercise(workoutId: Long, exerciseId: Long): Boolean
@@ -37,6 +39,8 @@ interface WorkoutRepository {
     suspend fun deleteSet(id: Long)
     suspend fun updateExerciseNotes(workoutExerciseId: Long, notes: String)
     suspend fun setRestEndTime(workoutId: Long, endTime: Long?)
+    /** Adjust only the still-current live deadline; expiry, Skip and Finish can supersede it. */
+    suspend fun adjustRestEndTime(workoutId: Long, expectedDeadline: Long, adjustedDeadline: Long, now: Long): Boolean
     fun observeRestTimer(): Flow<RestTimer?> = observeWorkouts().map { workouts ->
         workouts.firstOrNull { it.workout.endTime == null && it.workout.restEndTime != null }?.workout?.let {
             RestTimer(it.id, requireNotNull(it.restEndTime), it.name)

@@ -21,6 +21,7 @@ class RestTimerCoordinator(
     private val onError: (Exception) -> Unit = {},
 ) {
     private val mutex = Mutex()
+    private val alarmDelivery = RestAlarmDelivery(scope, ::handleAlarm, onError)
     private var observation: Job? = null
     private var foregroundExpiry: Job? = null
     private var scheduled: RestTimer? = null
@@ -73,7 +74,9 @@ class RestTimerCoordinator(
         catch (failure: Exception) { onError(failure) }
     }
 
-    suspend fun onAlarm(workoutId: Long, expectedDeadline: Long) = mutex.withLock {
+    suspend fun onAlarm(workoutId: Long, expectedDeadline: Long) = alarmDelivery.deliver(workoutId, expectedDeadline).await()
+
+    private suspend fun handleAlarm(workoutId: Long, expectedDeadline: Long) = mutex.withLock {
         if (restoring) return@withLock
         val timer = repository.restTimer() ?: return@withLock
         if (timer.workoutId != workoutId || timer.deadline != expectedDeadline) return@withLock

@@ -33,6 +33,7 @@ import com.forge.workout.ForgeApplication
 import com.forge.workout.R
 import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.backup.LocalBackupDocuments
+import com.forge.workout.backup.RestoreStartupState
 import com.forge.workout.utils.userMessage
 import com.forge.workout.ui.screens.home.HomeScreen
 import com.forge.workout.ui.screens.history.*
@@ -59,11 +60,36 @@ internal val destinations = listOf(
     Destination("progress",R.string.progress,Icons.AutoMirrored.Rounded.TrendingUp)
 )
 @Composable fun ForgeApp(application: ForgeApplication) {
+    val startup by application.startupState.collectAsStateWithLifecycle()
+    if (startup != RestoreStartupState.READY) {
+        ForgeTheme(ThemeMode.SYSTEM) {
+            Surface(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
+                    if (startup == RestoreStartupState.FAILED) {
+                        Text(stringResource(R.string.restore_recovery_failed))
+                        Button(onClick = application::retryStartup) { Text(stringResource(R.string.retry_failed_changes)) }
+                    } else {
+                        CircularProgressIndicator()
+                        Text(stringResource(R.string.loading))
+                    }
+                }
+            }
+        }
+        return
+    }
+    ForgeReadyApp(application)
+}
+
+@Composable private fun ForgeReadyApp(application: ForgeApplication) {
     val formatError: (Throwable) -> String = remember(application) { { failure -> userMessage(application, failure) } }
     val appViewModel: AppViewModel = viewModel(factory = viewModelFactory { initializer {
         AppViewModel(application.repository, application.preferences, formatError, { application.getString(R.string.new_workout_name) })
     } })
-    val workoutViewModel: WorkoutViewModel = viewModel(factory = viewModelFactory { initializer { WorkoutViewModel(application.repository, formatError) } })
+    val workoutViewModel: WorkoutViewModel = viewModel(factory = viewModelFactory { initializer {
+        WorkoutViewModel(application.repository, formatError, savedState = createSavedStateHandle())
+    } })
     val libraryViewModel: LibraryViewModel = viewModel(factory = viewModelFactory { initializer { LibraryViewModel(application.repository, formatError) } })
     val routineViewModel: RoutineViewModel = viewModel(factory = viewModelFactory { initializer { RoutineViewModel(application.repository, formatError) } })
     val catalogViewModel: CatalogViewModel = viewModel(factory = viewModelFactory { initializer { CatalogViewModel(application.catalogs, application.nutritionRepository) } })
@@ -83,7 +109,7 @@ internal val destinations = listOf(
     val historyViewModel: HistoryViewModel = viewModel(factory = viewModelFactory { initializer { HistoryViewModel(createSavedStateHandle()) } })
     val progressViewModel: ProgressViewModel = viewModel(factory = viewModelFactory { initializer { ProgressViewModel(createSavedStateHandle()) } })
     val backupViewModel: BackupViewModel = viewModel(factory = viewModelFactory { initializer {
-        BackupViewModel(application.backups, application.preferences, LocalBackupDocuments(application),
+        BackupViewModel(application.backups, LocalBackupDocuments(application),
             flushBeforeOperation = {
                 if(!workoutViewModel.flush()) false else {
                     libraryViewModel.busy.first { !it }
@@ -106,11 +132,9 @@ internal val destinations = listOf(
                 diaryMutationViewModel.resetAfterRestore()
                 nutritionEnergyWriter.resetAfterRestore()
             }, beforeRestore = {
-                application.workoutEnergy.pauseForRestore()
-                application.restTimers.pauseForRestore()
+                application.pauseForRestore()
             }, afterRestoreAttempt = {
-                try { application.restTimers.resumeAfterRestore() }
-                finally { application.workoutEnergy.resumeAfterRestore() }
+                application.resumeAfterRestoreAttempt()
             })
     } })
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
@@ -125,6 +149,16 @@ internal val destinations = listOf(
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val reportEditorStateReset = remember(workoutViewModel, snackbar) {
+        var reported = false
+        {
+            if (!reported) {
+                reported = true
+                scope.launch { snackbar.showSnackbar(application.getString(R.string.workout_editor_recovered)) }
+            }
+            Unit
+        }
+    }
     val appErrors = remember(appViewModel) { appViewModel.events }
     LaunchedEffect(workoutViewModel) {
         // Re-publishing a blocked save must not cancel the action on an already visible snackbar.
@@ -214,7 +248,7 @@ internal val destinations = listOf(
                         },{ state.activeWorkout?.let { detail -> scope.launch {
                             workoutViewModel.flush()
                             deleteWorkout(detail)
-                        } } },{ nav.popFrom(backStack) },appViewModel::setRest, { openChild(backStack,"exercises") })
+                        } } },{ nav.popFrom(backStack) },appViewModel::setRest, { openChild(backStack,"exercises") }, reportEditorStateReset)
                         }
                     }
                     composable("nutrition") { backStack ->
@@ -265,7 +299,7 @@ internal val destinations = listOf(
                     composable("editor/{id}",arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->
                         val id = backStack.arguments?.getLong("id") ?: return@composable
                         val detail = state.workouts.firstOrNull { it.workout.id == id }
-                        WorkoutScreen(detail,state.workouts,state.preferences,workoutViewModel,true,{},{},{ openChild(backStack,"picker/$id") },{ scope.launch { if(workoutViewModel.flush()) nav.popFrom(backStack) } },{},{ nav.popFrom(backStack) },appViewModel::setRest)
+                        WorkoutScreen(detail,state.workouts,state.preferences,workoutViewModel,true,{},{},{ openChild(backStack,"picker/$id") },{ scope.launch { if(workoutViewModel.flush()) nav.popFrom(backStack) } },{},{ nav.popFrom(backStack) },appViewModel::setRest,onEditorStateReset = reportEditorStateReset)
                     }
                     listOf("detail/{id}","summary/{id}").forEach { pattern ->
                         composable(pattern,arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->

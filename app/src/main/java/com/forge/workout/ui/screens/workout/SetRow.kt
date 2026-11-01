@@ -64,7 +64,8 @@ private fun quantityField(type: ExerciseType) = when(type) {
 @Composable internal fun SetRow(set: WorkoutSet, type: ExerciseType, previous: WorkoutSet?, unit: WeightUnit,
     showPrevious: Boolean, onValueChange: (SetField, Double) -> Unit,
     onValidityChange: (SetField, Boolean) -> Unit, onTypeChange: (SetType) -> Unit,
-    onCompleteChange: (Boolean) -> Unit, onDelete: () -> Unit) {
+    onCompleteChange: (Boolean) -> Unit, onDelete: () -> Unit,
+    editorSessionId: String? = null, onEditorStateReset: () -> Unit = {}) {
     var validWeight by remember(set.id) { mutableStateOf(true) }
     var validQuantity by remember(set.id) { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
@@ -100,7 +101,7 @@ private fun quantityField(type: ExerciseType) = when(type) {
                     stringResource(R.string.numeric_weight, unit.symbol), false, unit.name, unit.fromKg(10_000.0), false, Modifier.weight(1f), ImeAction.Next,
                     { quantityFocus.requestFocus() }, {
                         validWeight = it; onValidityChange(SetField.WEIGHT, it)
-                    }) { onValueChange(SetField.WEIGHT, unit.toKg(it)) }
+                    }, editorSessionId, onEditorStateReset, set.weight) { onValueChange(SetField.WEIGHT, unit.toKg(it)) }
                 val field = quantityField(type)
                 val value = when(field) { SetField.DURATION -> set.duration.toDouble(); SetField.DISTANCE -> set.distance; else -> set.reps.toDouble() }
                 val maximum = when(field) { SetField.DURATION -> 604_800.0; SetField.DISTANCE -> 100_000.0; else -> 10_000.0 }
@@ -108,7 +109,7 @@ private fun quantityField(type: ExerciseType) = when(type) {
                     maximum, set.completed, Modifier.weight(1f).focusRequester(quantityFocus), ImeAction.Done,
                     { focusManager.clearFocus() }, {
                         validQuantity = it; onValidityChange(field, it)
-                    }) { onValueChange(field, it) }
+                    }, editorSessionId, onEditorStateReset) { onValueChange(field, it) }
                 Checkbox(checked = set.completed, onCheckedChange = {
                     if(!it || validWeight && validQuantity) onCompleteChange(it)
                 }, enabled = set.completed || validWeight && validQuantity && quantityReady,
@@ -128,10 +129,14 @@ private fun quantityField(type: ExerciseType) = when(type) {
 
 @Composable private fun NumericField(id: Long, field: SetField, initial: Double, label: String, integer: Boolean,
     unitKey: String, maximum: Double, required: Boolean, modifier: Modifier, imeAction: ImeAction,
-    onImeAction: () -> Unit, onValid: (Boolean) -> Unit, onValue: (Double) -> Unit) {
-    var draft by rememberSaveable(id, field, saver = numericInputSaver) {
-        mutableStateOf(initialNumericDraft(initial, integer, unitKey))
+    onImeAction: () -> Unit, onValid: (Boolean) -> Unit, editorSessionId: String?,
+    onEditorStateReset: () -> Unit, canonicalInitialKg: Double? = null, onValue: (Double) -> Unit) {
+    val restoration = remember(editorSessionId) { NumericRestoration() }
+    val saver = remember(editorSessionId) { numericInputSaver(editorSessionId, restoration) }
+    var draft by rememberSaveable(id, field, editorSessionId, saver = saver) {
+        mutableStateOf(initialNumericDraft(initial, integer, unitKey, canonicalInitialKg))
     }
+    LaunchedEffect(restoration.rejected) { if (restoration.rejected) onEditorStateReset() }
     // Keep the accepted value while its save is pending or failed. Unit changes
     // format that exact value without feeding rounded presentation back into storage.
     val presented = remember(draft, unitKey, initial, integer) { draft.presented(unitKey, initial, integer) }
@@ -190,9 +195,9 @@ private data class NumericInputDraft(val input: TextFieldValue, val unitKey: Str
 private fun numericText(value: Double, integer: Boolean): String = if (integer) value.toInt().toString()
     else BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
-private fun initialNumericDraft(initial: Double, integer: Boolean, unitKey: String): NumericInputDraft = NumericInputDraft(
+private fun initialNumericDraft(initial: Double, integer: Boolean, unitKey: String, canonicalInitialKg: Double? = null): NumericInputDraft = NumericInputDraft(
     TextFieldValue(if (initial == 0.0) "" else numericText(initial, integer)), unitKey,
-    WeightUnit.entries.firstOrNull { it.name == unitKey }?.toKg(initial),
+    canonicalInitialKg ?: WeightUnit.entries.firstOrNull { it.name == unitKey }?.toKg(initial),
 )
 
 private fun canonicalWeight(text: String, unitKey: String): Double? {
@@ -204,18 +209,25 @@ private fun canonicalWeight(text: String, unitKey: String): Double? {
 
 // Keep the unrounded anchor through focus changes, saved tabs and repeated unit
 // conversions. Legacy unit/text payloads derive their anchor from valid source text.
-private val numericInputSaver = Saver<MutableState<NumericInputDraft>, Any>(
+private class NumericRestoration(var rejected: Boolean = false)
+
+private fun numericInputSaver(owner: String?, restoration: NumericRestoration) = Saver<MutableState<NumericInputDraft>, Any>(
     save = { state ->
         val draft = state.value
         with(TextFieldValue.Saver) { save(draft.input) }
-            ?.let { arrayListOf(draft.unitKey, it, draft.canonicalWeightKg) }
+            ?.let { arrayListOf(draft.unitKey, it, draft.canonicalWeightKg, owner) }
     },
     restore = { saved ->
         val payload = if (saved is State<*>) saved.value else saved
         (payload as? List<*>)?.let { values ->
             val unit = values.getOrNull(0) as? String
             val input = values.getOrNull(1)?.let { runCatching { TextFieldValue.Saver.restore(it) }.getOrNull() }
-            if (unit == null || input == null) null else {
+            if (owner != null && values.getOrNull(3) != owner) {
+                // UI text owned by an earlier writer is not a persistence acknowledgement.
+                // The new writer supplies recovered exact assignments or current Room values.
+                restoration.rejected = true
+                null
+            } else if (unit == null || input == null) null else {
                 val parsed = canonicalWeight(input.text, unit)
                 val anchor = (values.getOrNull(2) as? Double)?.takeIf { parsed != null && it.isFinite() && it in 0.0..10_000.0 }
                 mutableStateOf(NumericInputDraft(input, unit, anchor ?: parsed))

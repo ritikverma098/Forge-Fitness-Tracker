@@ -29,6 +29,9 @@ interface WorkoutDao {
     @Query("UPDATE workouts SET restEndTime = NULL WHERE id = :workoutId AND endTime IS NULL AND restEndTime = :expectedDeadline AND restEndTime <= :now")
     suspend fun consumeRestTimer(workoutId: Long, expectedDeadline: Long, now: Long): Int
 
+    @Query("UPDATE workouts SET restEndTime = :adjustedDeadline WHERE id = :workoutId AND endTime IS NULL AND restEndTime = :expectedDeadline AND restEndTime > :now")
+    suspend fun adjustRestEndTime(workoutId: Long, expectedDeadline: Long, adjustedDeadline: Long, now: Long): Int
+
     @Query("""
         SELECT we.exerciseId, MAX(w.startTime) AS lastUsedAt, COUNT(DISTINCT w.id) AS workoutCount
         FROM workout_exercises we INNER JOIN workouts w ON w.id = we.workoutId
@@ -60,6 +63,7 @@ interface WorkoutDao {
 
     @Query("SELECT value FROM app_metadata WHERE `key` = :key") suspend fun metadata(key: String): String?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putMetadata(value: AppMetadata)
+    @Query("DELETE FROM app_metadata WHERE `key` = :key") suspend fun deleteMetadata(key: String)
 
     @Query("SELECT * FROM workouts WHERE endTime IS NULL ORDER BY startTime DESC LIMIT 1") suspend fun activeWorkout(): Workout?
     @Query("SELECT * FROM workouts WHERE id = :id") suspend fun workout(id: Long): Workout?

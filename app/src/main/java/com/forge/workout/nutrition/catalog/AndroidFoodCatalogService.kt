@@ -42,16 +42,18 @@ class AndroidFoodCatalogService(
         val installed = dao.catalogPack(manifest.pack.id)
         if (installed != null) {
             val bundledPayload = installed.sha256.equals(manifest.pack.sha256, ignoreCase = true)
+            val supersededBundle = !bundledPayload && manifest.pack.id == "usda-core" &&
+                installed.sha256.equals(SUPERSEDED_BUNDLED_SHA, ignoreCase = true)
             // Initialization seeds the catalog; explicit imports choose its revision. Version
-            // labels have no ordering, and a different complete pack may have its own count.
+            // labels have no ordering. Only this exact retired bundle gets the source-unit fix.
             // For this exact bundled payload, the manifest also exposes a damaged stored count.
-            if (installed.foodCount > 0 && dao.catalogFoodCount(installed.id) == installed.foodCount &&
+            if (!supersededBundle && installed.foodCount > 0 && dao.catalogFoodCount(installed.id) == installed.foodCount &&
                 (!bundledPayload || installed.foodCount == manifest.pack.foodCount)) {
                 return@runInstall CatalogInstallResult(installed, 0, 0, 0, true)
             }
             // The APK can repair its own payload, but cannot reconstruct a different import.
             // Preserve that pack until the user explicitly imports its source again.
-            if (!bundledPayload) {
+            if (!bundledPayload && !supersededBundle) {
                 throw CatalogException(CatalogIssue.INVALID_PACK,
                     "The installed catalog is incomplete. Import its .forgefoods file again from a trusted source.")
             }
@@ -163,6 +165,8 @@ class AndroidFoodCatalogService(
     }
 
     private companion object {
+        // Published 1.3.1 bundle: branded mL values were incorrectly declared as grams.
+        const val SUPERSEDED_BUNDLED_SHA = "5b861595400a6e0a5c2eeb845962c6b2fe191bdb2c5a8138886d473aec93a3fb"
         const val TIMEOUT_MS = 15_000
         const val MAX_REDIRECTS = 5
     }

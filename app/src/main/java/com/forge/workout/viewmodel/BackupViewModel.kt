@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.forge.workout.R
 import com.forge.workout.backup.*
 import com.forge.workout.nutrition.model.FoodSourceType
-import com.forge.workout.preferences.PreferencesRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +13,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,7 +38,6 @@ data class BackupUiState(
 
 class BackupViewModel(
     private val backupRepository: BackupRepository,
-    private val preferences: PreferencesRepository,
     private val documents: BackupDocuments,
     private val flushBeforeOperation: suspend () -> Boolean = { true },
     private val onRestored: () -> Unit = {},
@@ -93,20 +90,7 @@ class BackupViewModel(
             try {
                 beforeRestore()
                 withContext(ioDispatcher) {
-                    val previous = preferences.preferences.first()
-                    var preferencesWritten = false
-                    try {
-                        backupRepository.restore(backup) {
-                            // Record a completed DataStore write even if the Room transaction is cancelled.
-                            withContext(NonCancellable) {
-                                preferences.replace(backup.preferences)
-                                preferencesWritten = true
-                            }
-                        }
-                    } catch(failure: Exception) {
-                        if(preferencesWritten) withContext(NonCancellable) { preferences.replace(previous) }
-                        throw failure
-                    }
+                    backupRepository.restore(backup)
                 }
             } finally {
                 withContext(NonCancellable) { afterRestoreAttempt() }
