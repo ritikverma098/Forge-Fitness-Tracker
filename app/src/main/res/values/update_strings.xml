@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_available">Update Available</string>
+    <string name="update_current_version">Current version: %1$s</string>
+    <string name="update_new_version">New version: %1$s</string>
+    <string name="update_release_date">Published: %1$s</string>
+    <string name="update_whats_new">What’s New</string>
+    <string name="update_no_notes">No release notes were provided.</string>
+    <string name="update_download">Download Now</string>
+    <string name="update_later">Later</string>
+    <string name="update_skip">Skip This Version</string>
+    <string name="update_open_link_failed">Couldn’t open the link. Check that a browser is available.</string>
+    <string name="update_installed_version">Version %1$s</string>
+    <string name="update_check">Check for Updates</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_found">Forge %1$s is available.</string>
+    <string name="update_current">Forge is up to date.</string>
+    <string name="update_unavailable">Unable to check for updates. Try again later.</string>
+    <string name="update_no_valid_release">No valid release found.</string>
+    <string name="update_view_repository">View GitHub Repository</string>
+    <string name="update_view_release">View Latest Release</string>
+</resources>

@@ -114,6 +114,7 @@ class RestoreStartupContentHostTest {
 }
 
 class RestoreGateTestApplication : ForgeApplication() {
+    override fun canCheckLatestRelease() = false
     override fun onCreate() = Unit
     val release = CompletableDeferred<Unit>()
     val fail = AtomicBoolean(true)

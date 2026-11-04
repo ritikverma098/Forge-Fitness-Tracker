@@ -18,8 +18,9 @@ import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.RestAlertSettings
 import com.forge.workout.ui.screens.workout.restLabel
 import com.forge.workout.viewmodel.BackupUiState
+import com.forge.workout.viewmodel.UpdateViewModel
 
-@Composable fun SettingsScreen(
+@Composable internal fun SettingsScreen(
     preferences: UserPreferences,
     onBack: () -> Unit,
     onTheme: (ThemeMode) -> Unit,
@@ -31,6 +32,8 @@ import com.forge.workout.viewmodel.BackupUiState
     onReadBackup: (Uri) -> Unit,
     onConfirmRestore: () -> Unit,
     onCancelRestore: () -> Unit,
+    updates: UpdateViewModel,
+    onCheckUpdates: () -> Unit,
 ) {
     BackHandler(enabled = backupState.busy) { }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -57,7 +60,9 @@ import com.forge.workout.viewmodel.BackupUiState
         SettingsCard(stringResource(R.string.backup_title)) {
             BackupRestoreContent(backupState, onWriteBackup, onReadBackup, onConfirmRestore, onCancelRestore)
         }
-        SettingsCard(stringResource(R.string.about)) { Text(stringResource(R.string.about_description),style = MaterialTheme.typography.bodyMedium) }
+        SettingsCard(stringResource(R.string.about)) {
+            UpdateSettings(updates, enabled = !backupState.busy && backupState.pending == null, onCheckUpdates)
+        }
         Spacer(Modifier.height(24.dp))
     }
 }

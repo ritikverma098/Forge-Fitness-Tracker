@@ -63,7 +63,7 @@
   <string name="confirm_deletion">Confirm workout deletion</string>
   <string name="confirm_deletion_description">Ask before permanently deleting a workout.</string>
   <string name="about">About Forge</string>
-  <string name="about_description">Version 1.3.2\nYour training and nutrition, on your terms. Works offline. No account, ads, or analytics. Your data stays on your device.</string>
+  <string name="about_description">Your training and nutrition, on your terms. Works offline. No account, ads, or analytics. Your data stays on your device.</string>
   <string name="ready_to_train">Ready to train?</string>
   <string name="workout_empty_description">Build a session as you go, or start with a routine.</string>
   <string name="start_workout">Start workout</string>

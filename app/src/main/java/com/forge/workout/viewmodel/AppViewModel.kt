@@ -30,6 +30,8 @@ class AppViewModel(private val repository: WorkoutRepository, private val prefer
     private val ready = MutableStateFlow(false)
     private val eventChannel = Channel<AppEvent>(Channel.BUFFERED)
     private val actions = Mutex()
+    private val pendingWorkoutStarts = MutableStateFlow(0)
+    val workoutStarts = pendingWorkoutStarts.asStateFlow()
     val events = eventChannel.receiveAsFlow()
     val state = combine(repository.observeExercises(), repository.observeWorkouts(), repository.observeRoutines(), preferencesRepository.preferences, ready) { exercises,workouts,routines,preferences,loaded ->
         AppUiState(exercises,workouts,routines,preferences,loaded)
@@ -41,9 +43,22 @@ class AppViewModel(private val repository: WorkoutRepository, private val prefer
             catch(e: Exception) { eventChannel.send(AppEvent.Message(errorFormatter(e))) }
         }
     } }
-    fun start(routineId: Long? = null, repeatId: Long? = null) = perform {
-        val id = repository.startWorkout(newWorkoutName(), routineId, repeatId)
-        eventChannel.send(AppEvent.OpenWorkout(id))
+    fun start(routineId: Long? = null, repeatId: Long? = null) {
+        pendingWorkoutStarts.update { it + 1 }
+        perform {
+            try {
+                val id = repository.startWorkout(newWorkoutName(), routineId, repeatId)
+                eventChannel.send(AppEvent.OpenWorkout(id))
+            } catch (error: Exception) {
+                acknowledgeWorkoutStart()
+                throw error
+            }
+        }
+    }
+
+    // Keep the prompt gate closed until navigation handles the new workout.
+    internal fun acknowledgeWorkoutStart() {
+        pendingWorkoutStarts.update { (it - 1).coerceAtLeast(0) }
     }
     fun finish(id: Long) = perform { repository.finishWorkout(id); eventChannel.send(AppEvent.OpenSummary(id)) }
     fun deleteWorkout(id: Long) = perform { repository.deleteWorkout(id); eventChannel.send(AppEvent.GoHome) }

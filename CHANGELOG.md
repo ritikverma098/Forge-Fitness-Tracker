@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Check for stable Forge updates on GitHub at startup and from Settings. Automatic checks run at most once per 24 hours.
+- Read release notes, choose Later or Skip This Version, and open the official APK link through Android. Prompts wait until workouts and backup operations are out of the way.
+
 ## 1.3.2 — 2026-11-01
 
 ### Fixed

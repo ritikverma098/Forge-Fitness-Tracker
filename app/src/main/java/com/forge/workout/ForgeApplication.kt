@@ -1,6 +1,8 @@
 package com.forge.workout
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.forge.workout.data.database.ForgeDatabase
 import com.forge.workout.preferences.PreferencesRepository
 import com.forge.workout.repository.RoomWorkoutRepository
@@ -19,6 +21,7 @@ import android.os.PowerManager
 import android.util.Log
 import com.forge.workout.rest.AndroidRestAlerts
 import com.forge.workout.rest.RestTimerCoordinator
+import com.forge.workout.updates.GitHubReleaseSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +32,13 @@ open class ForgeApplication : Application() {
     open val nutritionRepository: NutritionRepository by lazy { RoomNutritionRepository(database) }
     open val catalogs: FoodCatalogService by lazy { AndroidFoodCatalogService(this, database) }
     open val preferences: PreferencesRepository by lazy { PreferencesRepository(this) }
+    private val githubReleases by lazy { GitHubReleaseSource() }
+    internal open suspend fun checkLatestRelease() = githubReleases.check(BuildConfig.VERSION_NAME)
+    internal open fun canCheckLatestRelease(): Boolean {
+        val manager = getSystemService(ConnectivityManager::class.java)
+        val network = manager.activeNetwork ?: return false
+        return manager.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
     open val backups: BackupRepository by lazy {
         RoomBackupRepository(database, preferencesRestorer = preferences::replace) { preferences.preferences.first() }
     }

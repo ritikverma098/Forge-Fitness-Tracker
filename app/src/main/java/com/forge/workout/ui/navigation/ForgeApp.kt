@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
@@ -30,6 +32,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.forge.workout.ForgeApplication
+import com.forge.workout.BuildConfig
 import com.forge.workout.R
 import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.backup.LocalBackupDocuments
@@ -45,6 +48,7 @@ import com.forge.workout.ui.screens.workout.WorkoutScreen
 import com.forge.workout.ui.screens.nutrition.NutritionScreen
 import com.forge.workout.ui.screens.nutrition.WorkoutCaloriesCard
 import com.forge.workout.ui.theme.ForgeTheme
+import com.forge.workout.ui.components.UpdateAvailableDialog
 import com.forge.workout.viewmodel.*
 import com.forge.workout.preferences.ThemeMode
 import kotlinx.coroutines.launch
@@ -87,6 +91,13 @@ internal val destinations = listOf(
     val appViewModel: AppViewModel = viewModel(factory = viewModelFactory { initializer {
         AppViewModel(application.repository, application.preferences, formatError, { application.getString(R.string.new_workout_name) })
     } })
+    val updates: UpdateViewModel = viewModel(factory = viewModelFactory { initializer {
+        UpdateViewModel(application.preferences, application::canCheckLatestRelease, application::checkLatestRelease)
+    } })
+    LifecycleResumeEffect(updates) {
+        updates.checkAutomatically()
+        onPauseOrDispose { }
+    }
     val workoutViewModel: WorkoutViewModel = viewModel(factory = viewModelFactory { initializer {
         WorkoutViewModel(application.repository, formatError, savedState = createSavedStateHandle())
     } })
@@ -139,6 +150,7 @@ internal val destinations = listOf(
     } })
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
     val state by appViewModel.state.collectAsStateWithLifecycle()
+    val workoutStarts by appViewModel.workoutStarts.collectAsStateWithLifecycle()
     val requestedWorkoutDeletions = remember(backupState.restoreGeneration) { mutableMapOf<Long, Pair<Set<Long>, Set<Long>>>() }
     val activity = LocalActivity.current as? ComponentActivity
     val dark = when(state.preferences.themeMode) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> isSystemInDarkTheme() }
@@ -190,24 +202,38 @@ internal val destinations = listOf(
     // Recreate the controller and its host together so the host binds the new lifecycle.
     RestoreNavigation(backupState.restoreGeneration) { nav ->
     val navigationEntry by nav.currentBackStackEntryAsState()
+    fun allowsUpdateAt(entry: NavBackStackEntry?, restoreGeneration: Int): Boolean = when (entry?.destination?.route) {
+        "home" -> restoreGeneration == 0
+        "settings" -> true
+        else -> false
+    }
+    val entryState = navigationEntry?.lifecycle?.currentStateFlow?.collectAsStateWithLifecycle()?.value
+    val safeForUpdate = state.ready && state.activeWorkout == null && workoutStarts == 0 &&
+        !backupState.busy && backupState.pending == null &&
+        snackbar.currentSnackbarData == null && entryState == Lifecycle.State.RESUMED &&
+        allowsUpdateAt(navigationEntry, backupState.restoreGeneration)
     val mainDestination = destinations.any { it.route == navigationEntry?.destination?.route }
     val persistentTabBar = rememberPersistentTabBarState(if (state.ready) navigationEntry?.destination?.route else null)
     LaunchedEffect(appErrors, nav, requestedWorkoutDeletions) { appErrors.collect { event -> when(event) {
         is AppEvent.Message -> scope.launch { snackbar.showSnackbar(event.value) }
         else -> {
-            val generation = backupViewModel.state.value.restoreGeneration
-            backupViewModel.state.first { !it.busy }
-            if(generation == backupViewModel.state.value.restoreGeneration) when(event) {
-                is AppEvent.OpenWorkout -> nav.navigate("workout") { launchSingleTop = true; popUpTo("home") }
-                is AppEvent.OpenSummary -> nav.navigate("summary/${event.id}") { popUpTo("home"); launchSingleTop = true }
-                AppEvent.GoHome -> {
-                    requestedWorkoutDeletions.toMap().forEach { (id, entities) ->
-                        workoutViewModel.forgetDeletedWorkout(id, entities.first, entities.second)
+            try {
+                val generation = backupViewModel.state.value.restoreGeneration
+                backupViewModel.state.first { !it.busy }
+                if(generation == backupViewModel.state.value.restoreGeneration) when(event) {
+                    is AppEvent.OpenWorkout -> nav.navigate("workout") { launchSingleTop = true; popUpTo("home") }
+                    is AppEvent.OpenSummary -> nav.navigate("summary/${event.id}") { popUpTo("home"); launchSingleTop = true }
+                    AppEvent.GoHome -> {
+                        requestedWorkoutDeletions.toMap().forEach { (id, entities) ->
+                            workoutViewModel.forgetDeletedWorkout(id, entities.first, entities.second)
+                        }
+                        requestedWorkoutDeletions.clear()
+                        nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
                     }
-                    requestedWorkoutDeletions.clear()
-                    nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
+                    is AppEvent.Message -> Unit
                 }
-                is AppEvent.Message -> Unit
+            } finally {
+                if (event is AppEvent.OpenWorkout) appViewModel.acknowledgeWorkoutStart()
             }
         }
     } } }
@@ -223,6 +249,18 @@ internal val destinations = listOf(
         appViewModel.deleteWorkout(detail.workout.id)
     }
     ForgeTheme(state.preferences.themeMode) {
+        if (safeForUpdate) {
+            ForgeUpdatePrompt(updates, settingsEntryId = navigationEntry?.takeIf { it.destination.route == "settings" }?.id) {
+                val entry = nav.currentBackStackEntry
+                val currentBackup = backupViewModel.state.value
+                entry != null && entry.id == navigationEntry?.id &&
+                    allowsUpdateAt(entry, currentBackup.restoreGeneration) && nav.canActFrom(entry) &&
+                    appViewModel.state.value.ready && appViewModel.state.value.activeWorkout == null &&
+                    appViewModel.workoutStarts.value == 0 && !currentBackup.busy &&
+                    currentBackup.pending == null &&
+                    snackbar.currentSnackbarData == null
+            }
+        }
         Scaffold(snackbarHost = { if (!mainDestination) SnackbarHost(snackbar) }) { padding ->
             Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize(),contentAlignment = Alignment.TopCenter) {
                 if(!state.ready) {
@@ -290,7 +328,12 @@ internal val destinations = listOf(
                     composable("progress") { MainTab("progress", snackbar) { ProgressScreen(state.exercises,state.workouts,state.preferences.weightUnit,progressViewModel) } }
                     composable("routines") { backStack -> RoutinesScreen(state.routines,state.exercises,routineViewModel,libraryViewModel,{ appViewModel.start(routineId = it) },{ nav.popFrom(backStack) }) }
                     composable("settings") { backStack -> SettingsScreen(state.preferences,{ nav.popFrom(backStack) },appViewModel::setTheme,appViewModel::setUnit,appViewModel::setRest,appViewModel::setConfirmation,
-                        backupState,backupViewModel::writeBackup,backupViewModel::readBackup,backupViewModel::confirmRestore,backupViewModel::cancelRestore) }
+                        backupState,backupViewModel::writeBackup,backupViewModel::readBackup,backupViewModel::confirmRestore,backupViewModel::cancelRestore,
+                        updates, onCheckUpdates = {
+                            if (nav.canActFrom(backStack)) {
+                                updates.checkManually(backStack.id)
+                            }
+                        }) }
                     composable("picker/{id}",arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->
                         val id = backStack.arguments?.getLong("id") ?: return@composable
                         ExerciseLibraryScreen(state.exercises,libraryViewModel,{ exercise -> if(nav.canActFrom(backStack)) { workoutViewModel.addExercise(id,exercise.id); nav.popFrom(backStack) } },{ nav.popFrom(backStack) },
@@ -327,4 +370,18 @@ internal val destinations = listOf(
         }
     }
 }
+}
+
+@Composable
+private fun ForgeUpdatePrompt(updates: UpdateViewModel, settingsEntryId: String?, stillSafe: () -> Boolean) {
+    val state by updates.state.collectAsStateWithLifecycle()
+    val pending = state.pending?.takeIf { settingsEntryId == null || it.settingsEntryId == settingsEntryId }
+    LaunchedEffect(pending, state.dialog, settingsEntryId) {
+        if (pending != null && stillSafe()) updates.presentPending(pending)
+    }
+    state.dialog?.takeIf { settingsEntryId == null || it.settingsEntryId == settingsEntryId }?.release?.let { release ->
+        UpdateAvailableDialog(release, BuildConfig.VERSION_NAME,
+            onLater = { updates.dismiss() }, onSkip = { updates.dismiss(skip = true) },
+            onDownloaded = { updates.downloaded(release) })
+    }
 }

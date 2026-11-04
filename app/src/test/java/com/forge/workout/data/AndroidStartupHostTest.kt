@@ -71,6 +71,7 @@ class AndroidStartupHostTest {
 }
 
 class StartupApplication : ForgeApplication() {
+    override fun canCheckLatestRelease() = false
     public override val database: ForgeDatabase by lazy {
         Room.inMemoryDatabaseBuilder(this, ForgeDatabase::class.java).build()
     }

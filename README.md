@@ -4,7 +4,7 @@
 
 A native workout and nutrition tracker for Android 8.0 and newer, built with Kotlin, Jetpack Compose and Material 3. Log training, plan routines, review progress and keep a food diary on your device. Forge uses an original interface with neutral surfaces, a lime accent and light/dark/system themes.
 
-Training and nutrition work offline, including the bundled food catalog. There are no ads, accounts, analytics or cloud sync. The app uses the internet only for an optional food catalog download requested by the user.
+Training and nutrition work offline, including the bundled food catalog. There are no ads, accounts, analytics or cloud sync. Forge uses the internet to check public GitHub release metadata and to download optional food catalogs when requested.
 
 [Features](#features) · [Changelog](CHANGELOG.md) · [Build and install](#build-and-install) · [Backup and restore](#backup-and-restore) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
 
@@ -15,6 +15,20 @@ Training and nutrition work offline, including the bundled food catalog. There a
 Version 1.3.2 is a focused reliability update for workout drafts, rest alerts, nutrition units and backup recovery. See the [changelog](CHANGELOG.md) and [verification report](docs/reliability-1.3.2.md).
 
 The downloadable APK uses the optimized release build, signed with the existing **development/debug key for sideload testing**. It does not use a production Play Store signing key. Android requires the same signing certificate to update an installed copy; back up your data before changing installations. The source project's normal `assembleRelease` remains unsigned, and no signing credentials are included.
+
+## In-app update checks
+
+The published 1.3.2 APK predates the update checker. Install an updater-enabled build to use it. On foreground startup, Forge checks the public GitHub Releases API when Android reports an internet-capable connection. DataStore limits automatic requests to one attempt per 24 hours. **Settings → About Forge → Check for Updates** checks on demand.
+
+Forge compares stable version numbers numerically and accepts an uploaded APK from the same repository and release tag. The dialog shows the release notes on a safe Home screen or after an explicit check in Settings. During a workout, Settings reports the result inline. Later snoozes that version for a day. Skip This Version suppresses its prompts until a newer release. The same version prompts at most once per app session. Download Now opens the validated APK URL in Android's browser or download handler. If Android asks for installation permission when opening the downloaded APK, follow the prompt for that browser or file manager.
+
+To prepare the next compatible release:
+
+1. Set a higher `versionCode` (at least 8 after 1.3.2) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
+2. Build the optimized APK with `assembleRelease`. Sign it outside the repository with the existing Forge distribution certificate. Use `apksigner verify --verbose --print-certs` to compare its certificate to the previous APK, then test an in-place upgrade with existing data. [Android APK signing tool](https://developer.android.com/tools/apksigner)
+3. Publish a stable GitHub release from the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm that the public API returns that tag and the uploaded APK URL. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
+
+Plan production signing as a separate transition. Keep the signing key, passwords and recovery copies in protected storage. Test any signing lineage across Forge's supported Android versions. If a device cannot upgrade across the certificate change, export and verify a local JSON backup, uninstall Forge, install the new signed APK and restore the backup. [Android signing guide](https://developer.android.com/studio/publish/app-signing)
 
 ## Screenshots
 
