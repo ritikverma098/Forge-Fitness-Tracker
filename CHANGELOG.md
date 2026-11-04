@@ -1,11 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.3.3 — 2026-11-04
 
 ### Added
 
 - Check for stable Forge updates on GitHub at startup and from Settings. Automatic checks run at most once per 24 hours.
-- Read release notes, choose Later or Skip This Version, and open the official APK link through Android. Prompts wait until workouts and backup operations are out of the way.
+- Read the release changelog in a scrollable dialog with Download Now, Later and Skip This Version. The dialog waits for a safe screen during workouts and backup operations.
+- Settings shows the installed version, manual check results and links to the GitHub repository and latest release. Offline checks and failed responses leave training and nutrition available.
+
+### Compatibility
+
+- Version code 8 for `com.forge.workout`. Room schema 4 and portable backup format 3 continue to support existing data.
+- The optimized APK uses the same development/test certificate as the published 1.3.2 APK for in-place sideload updates. Production signing is a separate transition.
 
 ## 1.3.2 — 2026-11-01
 

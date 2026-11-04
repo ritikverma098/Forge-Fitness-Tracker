@@ -1,4 +1,4 @@
-# Forge 1.3.2
+# Forge 1.3.3
 
 [Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
 
@@ -10,21 +10,21 @@ Training and nutrition work offline, including the bundled food catalog. There a
 
 ## Download
 
-[Download Forge 1.3.2 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.2/Forge-1.3.2.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+[Download Forge 1.3.3 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.3/Forge-1.3.3.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
 
-Version 1.3.2 is a focused reliability update for workout drafts, rest alerts, nutrition units and backup recovery. See the [changelog](CHANGELOG.md) and [verification report](docs/reliability-1.3.2.md).
+Version 1.3.3 adds in-app update checks for stable GitHub releases. See the [changelog](CHANGELOG.md).
 
-The downloadable APK uses the optimized release build, signed with the existing **development/debug key for sideload testing**. It does not use a production Play Store signing key. Android requires the same signing certificate to update an installed copy; back up your data before changing installations. The source project's normal `assembleRelease` remains unsigned, and no signing credentials are included.
+The downloadable APK is an optimized release build signed with the same **development/test certificate for sideloading** as 1.3.2. Android can install it in place over a copy signed with that certificate. Production distribution requires a separate signing transition. The source project's `assembleRelease` produces an unsigned APK.
 
 ## In-app update checks
 
-The published 1.3.2 APK predates the update checker. Install an updater-enabled build to use it. On foreground startup, Forge checks the public GitHub Releases API when Android reports an internet-capable connection. DataStore limits automatic requests to one attempt per 24 hours. **Settings → About Forge → Check for Updates** checks on demand.
+Install 1.3.3 from GitHub to get the update checker. On foreground startup, Forge checks the public GitHub Releases API when Android reports an internet-capable connection. DataStore limits automatic requests to one attempt per 24 hours. **Settings → About Forge → Check for Updates** checks on demand.
 
 Forge compares stable version numbers numerically and accepts an uploaded APK from the same repository and release tag. The dialog shows the release notes on a safe Home screen or after an explicit check in Settings. During a workout, Settings reports the result inline. Later snoozes that version for a day. Skip This Version suppresses its prompts until a newer release. The same version prompts at most once per app session. Download Now opens the validated APK URL in Android's browser or download handler. If Android asks for installation permission when opening the downloaded APK, follow the prompt for that browser or file manager.
 
 To prepare the next compatible release:
 
-1. Set a higher `versionCode` (at least 8 after 1.3.2) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
+1. Set a higher `versionCode` (at least 9 after 1.3.3) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
 2. Build the optimized APK with `assembleRelease`. Sign it outside the repository with the existing Forge distribution certificate. Use `apksigner verify --verbose --print-certs` to compare its certificate to the previous APK, then test an in-place upgrade with existing data. [Android APK signing tool](https://developer.android.com/tools/apksigner)
 3. Publish a stable GitHub release from the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm that the public API returns that tag and the uploaded APK URL. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 
@@ -32,7 +32,7 @@ Plan production signing as a separate transition. Keep the signing key, password
 
 ## Screenshots
 
-Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.2 retains these layouts.
+Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.3 retains these layouts.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Ver
 
 ## Development status
 
-The **1.3.0 feature implementation is complete**, with stability fixes in **1.3.1** and a focused **1.3.2 reliability update**. Workout and nutrition changes were implemented through sequential build/test gates. Automated checks cover database migrations, calculations, editor state, navigation, backups and Android platform adapters; physical-phone validation remains pending.
+The **1.3.0 feature implementation is complete**, with reliability fixes in **1.3.1–1.3.2** and GitHub update checks in **1.3.3**. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and additional regional food packs where suitable redistribution rights and source data are available. Scope and timing are undecided. No additional regional packs are hosted with this release.
 

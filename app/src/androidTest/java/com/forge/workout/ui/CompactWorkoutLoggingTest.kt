@@ -28,6 +28,9 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.TextRange
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.forge.workout.ForgeApplication
 import com.forge.workout.MainActivity
@@ -142,7 +145,17 @@ class CompactWorkoutLoggingTest {
 
         weight.performTextReplacement("-3")
         completed.assertIsNotEnabled()
-        compose.onNodeWithText(text(R.string.invalid_set)).assertIsDisplayed()
+        // Stabilize the viewport before checking text below the focused numeric field.
+        val ime = WindowInsetsCompat.Type.ime()
+        compose.activityRule.scenario.onActivity { activity ->
+            WindowCompat.getInsetsController(activity.window, activity.window.decorView).hide(ime)
+        }
+        compose.waitUntil(10_000) {
+            compose.runOnUiThread {
+                ViewCompat.getRootWindowInsets(compose.activity.window.decorView)?.isVisible(ime) == false
+            }
+        }
+        compose.onNodeWithText(text(R.string.invalid_set)).performScrollTo().assertIsDisplayed()
         assertEquals(60.0, runBlocking { savedSet(set.id).weight }, 0.00001)
         assertFalse(runBlocking { savedSet(set.id).completed })
 
