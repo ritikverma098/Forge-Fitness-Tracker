@@ -163,24 +163,46 @@ def build(args):
             AUDIT['duplicate_source_records_excluded'] += 1
             continue
         names.add(key); chosen[food['id']] = food
-    foods = sorted(chosen.values(), key=lambda x: x['id'])
+    return write_pack(chosen.values(), output=args.output, pack_id=args.pack_id, name=args.name,
+                      version=args.version, source_url='https://fdc.nal.usda.gov/download-datasets/',
+                      license_text='CC0 1.0 / public domain',
+                      citation='U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.',
+                      audit=AUDIT, paths=paths)
+
+
+def file_sha256(path):
+    with pathlib.Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def write_pack(foods, *, output, pack_id, name, version, source_url, license_text, citation,
+               audit, paths, coverage=None):
+    """Write the shared, deterministic Forge v1 container for source-specific importers."""
+    foods = sorted(foods, key=lambda food: food['id'])
+    if not foods or len(foods) > 250_000 or len({food['id'] for food in foods}) != len(foods):
+        raise ValueError('Catalog must contain 1–250,000 distinct food IDs')
     payload = ''.join(json.dumps(x, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + '\n' for x in foods).encode('utf-8')
+    if len(payload) > 512 * 1024 * 1024:
+        raise ValueError('Catalog payload exceeds the Android installer limit')
     counts = dict(Counter(x['source'] for x in foods))
-    manifest = dict(format='forge-food-catalog', formatVersion=1, id=args.pack_id, name=args.name, version=args.version,
-                    sourceUrl='https://fdc.nal.usda.gov/download-datasets/', license='CC0 1.0 / public domain',
-                    citation='U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.',
+    manifest = dict(format='forge-food-catalog', formatVersion=1, id=pack_id, name=name, version=version,
+                    sourceUrl=source_url, license=license_text, citation=citation,
                     sha256=hashlib.sha256(payload).hexdigest(), foodCount=len(foods), payloadBytes=len(payload), sourceCounts=counts)
-    output = pathlib.Path(args.output); output.parent.mkdir(parents=True, exist_ok=True)
+    output = pathlib.Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name, contents in [('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2).encode('utf-8')), ('foods.jsonl', payload)]:
             info = zipfile.ZipInfo(name, (2026, 10, 12, 0, 0, 0)); info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, contents, compresslevel=9)
-    evidence = dict(manifest, archiveBytes=output.stat().st_size, archiveSha256=hashlib.sha256(output.read_bytes()).hexdigest(),
+    evidence = dict(manifest, archiveBytes=output.stat().st_size, archiveSha256=file_sha256(output),
                     nutrientRows=sum(len(x['nutrients']) for x in foods), portionRows=sum(len(x['portions']) for x in foods),
-                    indianFilterFoods=sum(x['region'] == 'IN' for x in foods), audit=dict(AUDIT),
-                    inputFiles=[dict(name=pathlib.Path(p).name, sha256=hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()) for p in paths])
+                    indianFilterFoods=sum(x['region'] == 'IN' for x in foods), audit=dict(audit),
+                    inputFiles=[dict(name=pathlib.Path(p).name, sha256=file_sha256(p)) for p in paths])
+    if coverage is not None:
+        evidence['coverage'] = coverage
     pathlib.Path(str(output) + '.report.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(evidence, ensure_ascii=False, indent=2))
+    return evidence
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

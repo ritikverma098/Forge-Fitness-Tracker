@@ -23,6 +23,7 @@
     <string name="food_quantity_error">Enter an amount above 0, up to 1,000,000.</string>
     <string name="food_amount_too_large">Use a smaller amount to calculate nutrition.</string>
     <string name="food_selected_serving">%1$s × %2$s</string>
+    <string name="food_selected_serving_equivalent">%1$s = %2$s</string>
     <string name="food_nutrition_for_serving">Nutrition for this serving</string>
     <string name="food_energy">Calories</string>
     <string name="food_protein">Protein</string>

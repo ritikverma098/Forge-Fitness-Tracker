@@ -36,14 +36,14 @@ import org.robolectric.annotation.Config
 class FoodSearchRepositoryHostTest {
     private lateinit var database: ForgeDatabase
     private lateinit var repository: RoomNutritionRepository
-    private val queries = CopyOnWriteArrayList<String>()
+    private val queries = CopyOnWriteArrayList<Pair<String, List<Any?>>>()
     @Volatile private var capture = false
 
     @Before fun openDatabase() {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), ForgeDatabase::class.java)
             .setQueryCallback(object : RoomDatabase.QueryCallback {
                 override fun onQuery(sqlQuery: String, bindArgs: List<Any?>) {
-                    if (capture) queries += sqlQuery
+                    if (capture) queries += sqlQuery to bindArgs.toList()
                 }
             }, Executor { it.run() }).build()
         repository = RoomNutritionRepository(database)
@@ -70,6 +70,55 @@ class FoodSearchRepositoryHostTest {
         assertTrue(ids("nonexistent").isEmpty())
     }
 
+    @Test fun `Indian aliases keep preparation and brand terms and deduplicate only the matched identity`() = runBlocking {
+        save("raw", "Okra raw", brand = "Harvest", aliases = "bhindi")
+        save("cooked", "Okra cooked", brand = "Harvest")
+        save("local", "Bhindi", region = "IN")
+        save("other-brand", "Okra cooked", brand = "Other")
+        assertEquals(listOf("local", "cooked", "other-brand", "raw"), ids("bhindi"))
+        assertEquals(listOf("cooked"), ids("bhindi cooked harv"))
+        assertEquals(listOf("local"), ids("okra", FoodBrowseFilter.INDIAN))
+        assertEquals(listOf("local"), repository.searchFoods("okra", region = "IN").ids())
+        assertEquals(listOf("local"), repository.observeFoods("okra", region = "IN").first().ids())
+        assertTrue(ids("bhindi OR cooked").isEmpty())
+        log(repository.food("cooked")!!.snapshot(), 20)
+        assertEquals(listOf("cooked"), ids("bhindi", FoodBrowseFilter.RECENT))
+
+        save("ragi", "Ragi flour", brand = "Harvest")
+        save("millet", "Finger millet, raw", brand = "Harvest")
+        save("blend", "Millet and finger lime blend", brand = "Harvest")
+        assertEquals(listOf("millet", "ragi"), ids("ragi harv"))
+        assertEquals(listOf("ragi"), ids("finger millet flour harv"))
+
+        save("idli", "Idli", brand = "Harvest")
+        save("sambar", "Sambhar powder", brand = "Harvest")
+        save("chapati", "Chapati flour", brand = "Harvest")
+        assertEquals(listOf("idli"), ids("idly harv"))
+        assertEquals(listOf("sambar"), ids("sambar harv"))
+        assertEquals(listOf("chapati"), ids("chapatti flour"))
+    }
+
+    @Test fun `search ranks exact and prefix name or brand ahead of favorites and recent foods in the same tier`() = runBlocking {
+        save("exact", "Rice")
+        save("exact-brand", "Cheesy snack", brand = "Rice")
+        save("name-prefix", "Rice brown")
+        save("brand-prefix", "A roll", brand = "Rice Fields")
+        save("favorite", "Z bag of rice")
+        save("recent", "B bag of rice")
+        save("older", "D bag of rice")
+        save("unlogged", "C bag of rice")
+        repository.saveFavorite(FavoriteEntity("favorite", savedAt = 1))
+        log(repository.food("older")!!.snapshot(), 20)
+        log(repository.food("recent")!!.snapshot(), 50)
+        val expected = listOf("exact", "exact-brand", "name-prefix", "brand-prefix", "favorite", "recent", "older", "unlogged")
+        assertEquals(expected, ids(" RICE "))
+        assertEquals(expected, repository.searchFoods("rice").ids())
+        assertEquals(expected, repository.observeFoods("rice").first().ids())
+        assertEquals(expected.take(4), page("rice", limit = 4).ids())
+        assertEquals(expected.drop(4), page("rice", limit = 4, offset = 4).ids())
+        assertEquals(listOf("recent", "older"), ids("rice", FoodBrowseFilter.RECENT))
+    }
+
     @Test fun `all favorite Indian and branded filters intersect the same query and exclude archived or orphan identities`() = runBlocking {
         save("indian", "Rice Indian", region = "in")
         save("branded", "Rice packaged", brand = "Example brand")
@@ -80,7 +129,7 @@ class FoodSearchRepositoryHostTest {
         repository.saveFavorite(FavoriteEntity("both", savedAt = 2))
         repository.saveFavorite(FavoriteEntity("archived", savedAt = 3))
         repository.saveFavorite(FavoriteEntity("missing", savedAt = 4))
-        assertEquals(listOf("indian", "branded", "plain", "both"), ids("rice"))
+        assertEquals(listOf("indian", "both", "branded", "plain"), ids("rice"))
         assertEquals(listOf("indian", "both"), ids("RICE", FoodBrowseFilter.INDIAN))
         assertEquals(listOf("branded", "both"), ids("ric", FoodBrowseFilter.BRANDED))
         assertEquals(listOf("indian", "both"), ids("Ri", FoodBrowseFilter.FAVORITES))
@@ -126,11 +175,14 @@ class FoodSearchRepositoryHostTest {
         val first = page("FOO")
         capture = false
         assertEquals(50, first.size)
-        val reads = queries.map(::normalized).filter { it.startsWith("SELECT F.* FROM NUTRITION_FOODS") }
+        val reads = queries.filter { normalized(it.first).startsWith("SELECT F.* FROM") }
         assertEquals("Each page uses one SQL query rather than one detail query per food", 1, reads.size)
-        assertTrue(reads.single().contains("NUTRITION_FOOD_SEARCH MATCH ?"))
-        assertTrue(reads.single().contains("LIMIT ? OFFSET ?"))
-        assertFalse(queries.any { it.contains("nutrition_food_nutrients", true) || it.contains("nutrition_food_portions", true) })
+        val (sql, bindArgs) = reads.single()
+        assertTrue(normalized(sql).contains("NUTRITION_FOOD_SEARCH MATCH ?"))
+        assertTrue(normalized(sql).contains("LIMIT ? OFFSET ?"))
+        assertFalse(queries.any { (query, _) ->
+            query.contains("nutrition_food_nutrients", true) || query.contains("nutrition_food_portions", true)
+        })
         val second = page("foo", offset = 50)
         val third = page("foo", offset = 100)
         assertEquals(listOf(50, 50, 37), listOf(first.size, second.size, third.size))
@@ -138,8 +190,10 @@ class FoodSearchRepositoryHostTest {
         assertEquals(137, all.map { it.id }.distinct().size)
         assertEquals(all, page(limit = 200))
         assertTrue(page("foo", offset = 150).isEmpty())
-        val plan = queryPlan("EXPLAIN QUERY PLAN SELECT f.id FROM nutrition_foods f INNER JOIN nutrition_food_search ON f.rowid = nutrition_food_search.rowid WHERE nutrition_food_search MATCH '\"food*\"' AND f.archived = 0 ORDER BY f.name COLLATE NOCASE, f.id LIMIT 50")
+        val plan = queryPlan("EXPLAIN QUERY PLAN $sql", bindArgs.toTypedArray())
         assertTrue(plan.any { it.contains("VIRTUAL TABLE", true) })
+        assertTrue(plan.any { it.contains("INTEGER PRIMARY KEY", true) })
+        assertTrue(plan.any { it.contains("index_nutrition_diary_foodId") })
         println("Food paging evidence: fixture=137 rows, first=50, SQL reads=${reads.size}, FTS=$plan")
     }
 
@@ -242,7 +296,8 @@ class FoodSearchRepositoryHostTest {
             page
         }
     private fun normalized(sql: String) = sql.replace(Regex("\\s+"), " ").trim().uppercase(Locale.ROOT)
-    private fun queryPlan(sql: String) = database.openHelper.writableDatabase.query(sql).use { cursor ->
-        buildList { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("detail"))) }
-    }
+    private fun queryPlan(sql: String, bindArgs: Array<out Any?> = emptyArray()) =
+        database.openHelper.writableDatabase.query(sql, bindArgs).use { cursor ->
+            buildList { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("detail"))) }
+        }
 }

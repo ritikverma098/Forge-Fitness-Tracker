@@ -79,6 +79,7 @@ class FoodDetailsHostTest {
         assertMacro(NutrientCodes.PROTEIN, "18.82")
         choose("portion:label")
         quantity().performTextReplacement("2")
+        compose.onNodeWithTag("food_selected_serving").assert(hasText("2 × 5 nuggets (85g) = 170 g"))
         assertMacro(NutrientCodes.ENERGY, "329.8")
         confirm().assertIsEnabled().performClick()
         val selected = confirmations.single()
@@ -95,7 +96,8 @@ class FoodDetailsHostTest {
         show(FoodDetail(FoodEntity(id = "drink", name = "Custom drink", baseAmount = 250.0,
             baseUnit = FoodUnit.MILLILITER, millilitersPerBase = 250.0, gramsPerBase = 200.0),
             listOf(FoodNutrientEntity("drink", NutrientCodes.ENERGY, "Energy", "kcal", 80.0),
-                FoodNutrientEntity("drink", NutrientCodes.PROTEIN, "Protein", "g", 4.0))))
+                FoodNutrientEntity("drink", NutrientCodes.PROTEIN, "Protein", "g", 4.0)),
+            listOf(FoodPortionEntity("drink", "cup", "Cup", 250.0, milliliters = 250.0, source = "Label"))))
         assertQuantity("250")
         assertMacro(NutrientCodes.ENERGY, "80")
         choose("GRAM")
@@ -111,6 +113,8 @@ class FoodDetailsHostTest {
         assertEquals(FoodUnit.MILLILITER, confirmations.last().choice.unit)
         assertEquals(.5, confirmations.last().factor, 0.0)
         assertEquals(250.0, confirmations.last().snapshot.baseAmount, 0.0)
+        choose("portion:cup")
+        compose.onNodeWithTag("food_selected_serving").assert(hasText("1 × Cup = 250 ml"))
     }
 
     @Test fun `unknown nutrients remain unavailable and invalid quantity cannot confirm before valid recovery`() {

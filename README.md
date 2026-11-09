@@ -1,4 +1,4 @@
-# Forge 1.3.3
+# Forge 1.4.0
 
 [Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
 
@@ -10,21 +10,21 @@ Training and nutrition work offline, including the bundled food catalog. There a
 
 ## Download
 
-[Download Forge 1.3.3 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.3.3/Forge-1.3.3.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+[Download Forge 1.4.0 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.0/Forge-1.4.0.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
 
-Version 1.3.3 adds in-app update checks for stable GitHub releases. See the [changelog](CHANGELOG.md).
+Forge 1.4.0 adds two optional offline food packs and improved search. See the [changelog](CHANGELOG.md).
 
-The downloadable APK is an optimized release build signed with the same **development/test certificate for sideloading** as 1.3.2. Android can install it in place over a copy signed with that certificate. Production distribution requires a separate signing transition. The source project's `assembleRelease` produces an unsigned APK.
+The downloadable APK is an optimized release build signed with the same **development/test certificate for sideloading** as 1.3.3. Android can install it in place over a copy signed with that certificate. Production distribution requires a separate signing transition. The source project's `assembleRelease` produces an unsigned APK.
 
 ## In-app update checks
 
-Install 1.3.3 from GitHub to get the update checker. On foreground startup, Forge checks the public GitHub Releases API when Android reports an internet-capable connection. DataStore limits automatic requests to one attempt per 24 hours. **Settings → About Forge → Check for Updates** checks on demand.
+Forge 1.3.3 and later can check for updates. On foreground startup, Forge checks the public GitHub Releases API when Android reports an internet-capable connection. DataStore limits automatic requests to one attempt per 24 hours. **Settings → About Forge → Check for Updates** checks on demand.
 
 Forge compares stable version numbers numerically and accepts an uploaded APK from the same repository and release tag. The dialog shows the release notes on a safe Home screen or after an explicit check in Settings. During a workout, Settings reports the result inline. Later snoozes that version for a day. Skip This Version suppresses its prompts until a newer release. The same version prompts at most once per app session. Download Now opens the validated APK URL in Android's browser or download handler. If Android asks for installation permission when opening the downloaded APK, follow the prompt for that browser or file manager.
 
 To prepare the next compatible release:
 
-1. Set a higher `versionCode` (at least 9 after 1.3.3) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
+1. Set a higher `versionCode` (at least 10 after 1.4.0) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
 2. Build the optimized APK with `assembleRelease`. Sign it outside the repository with the existing Forge distribution certificate. Use `apksigner verify --verbose --print-certs` to compare its certificate to the previous APK, then test an in-place upgrade with existing data. [Android APK signing tool](https://developer.android.com/tools/apksigner)
 3. Publish a stable GitHub release from the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm that the public API returns that tag and the uploaded APK URL. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 
@@ -32,7 +32,7 @@ Plan production signing as a separate transition. Keep the signing key, password
 
 ## Screenshots
 
-Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Version 1.3.3 retains these layouts.
+Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Forge 1.4.0 retains these layouts.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -42,9 +42,9 @@ Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Ver
 
 ## Development status
 
-The **1.3.0 feature implementation is complete**, with reliability fixes in **1.3.1–1.3.2** and GitHub update checks in **1.3.3**. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery.
+Forge **1.4.0** adds optional catalog packs and ranked food search to the workout and nutrition features in **1.3.3**. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery.
 
-Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and additional regional food packs where suitable redistribution rights and source data are available. Scope and timing are undecided. No additional regional packs are hosted with this release.
+Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and wider regional food coverage where suitable redistribution rights and source data are available.
 
 ### Current stability update
 
@@ -119,11 +119,18 @@ Dependencies require internet for the first build. The installed application inc
 
 ### Food sources and catalog packs
 
-The bundled USDA FoodData Central catalog contains **13,324 foods, 993,304 nutrient rows and 36,331 portions**: 7,793 SR Legacy, 5,332 FNDDS, and 199 branded foods after documented exclusions. The Indian filter contains 655 curated USDA entries and kitchen ingredients; it is not an ICMR-NIN database. No proprietary, Samsung Health or Open Food Facts data is bundled.
+The bundled USDA FoodData Central catalog contains **13,324 foods, 993,304 nutrient rows and 36,331 portions** across SR Legacy, FNDDS and branded records. It includes 655 curated Indian dishes and commonly used ingredients from USDA sources. No ICMR-NIN, proprietary, Samsung Health or Open Food Facts data is bundled.
 
-Attribution: U.S. Department of Agriculture, Agricultural Research Service, FoodData Central. The public-domain/CC0 source records, reproducible standard-library importer and exclusions are documented in [tools/catalog/README.md](tools/catalog/README.md). Running the importer also generates a report with source hashes, counts and exclusions. The compressed initial pack is approximately 3.8 MB; its structured payload is approximately 77 MB before Room indexing, so installation needs additional free storage.
+The bundled catalog is attributed to U.S. Department of Agriculture, Agricultural Research Service, FoodData Central. Its 3.8 MB archive expands to about 77 MB before Room indexing. The reproducible importers generate reports with input and output hashes, counts and exclusions. [Catalog sources and import instructions](tools/catalog/README.md)
 
-The food catalog screen supports compatible local `.forgefoods` files or optional HTTPS downloads with an expected whole-file SHA-256. Packs validate structure, provenance, counts, checksums, storage and stable IDs before atomic installation/update. Personal foods and historical snapshots are preserved. Publishers can generate licensed compatible packs using the documented pipeline. There is no barcode scanner or camera permission.
+| Optional pack | Foods | Coverage | Source license |
+| --- | ---: | --- | --- |
+| India packaged foods 1.0.0 | 631 | India-market snacks, sweets, dairy, mixes and pantry foods across 187 brand names | CC BY 4.0 |
+| USDA branded expansion 1.0.0 | 13,041 | 12,000 US and 1,041 New Zealand products, including 966 names or brands related to Indian foods | CC0 1.0 |
+
+Both packs together bring the offline catalog to **26,996 reference foods**. In **Nutrition → Food catalog**, Forge shows each pack's download size, version, market, food count and source. Download a pack there or use **Import pack** with a local `.forgefoods` file. **Download by URL** also accepts compatible packs with an expected whole-file SHA-256. [Pack downloads and checksums](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.0)
+
+Pack installations and replacements are atomic. Custom foods, recipes and logged nutrient snapshots are preserved. Search ranks name and brand matches before favorite and recent tie-breakers, supports token prefixes and selected Indian synonyms, and retains different product and preparation variants. Named servings show the source gram or mL equivalent when available. [Dataset coverage, licenses and distribution details](tools/catalog/README.md)
 
 ### Workout calorie estimates
 

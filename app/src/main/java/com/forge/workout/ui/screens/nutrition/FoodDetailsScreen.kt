@@ -203,6 +203,9 @@ private fun FoodDetailsContent(
     var amount by rememberSaveable(food.id) { mutableStateOf(inputAmount(initialQuantity ?: defaultChoice.suggestedQuantity)) }
     var expandedGroups by rememberSaveable(food.id) { mutableStateOf(listOf<String>()) }
     val choice = choices.firstOrNull { it.id == choiceId } ?: defaultChoice
+    val selectedPortion = remember(detail.portions, choice.portionId) {
+        detail.portions.firstOrNull { it.id == choice.portionId }
+    }
     val selectionExists = choices.any { it.id == choiceId }
     LaunchedEffect(choices, choiceId) {
         if (!selectionExists) { choiceId = defaultChoice.id; amount = inputAmount(defaultChoice.suggestedQuantity) }
@@ -254,10 +257,24 @@ private fun FoodDetailsContent(
                     isError = !valid, supportingText = {
                         if (!valid) Text(stringResource(if (factor != null && values == null) R.string.food_amount_too_large else R.string.food_quantity_error))
                     }, shape = RoundedCornerShape(18.dp))
-                if (valid) Text(
-                    if (choice.portionId == null) basisLabel(requireNotNull(quantity), choice.unit)
-                    else stringResource(R.string.food_selected_serving, numberFormat(requireNotNull(quantity)), servingLabel(choice)),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (valid) {
+                    val servingQuantity = requireNotNull(quantity)
+                    val selection = if (selectedPortion == null) basisLabel(servingQuantity, choice.unit)
+                    else stringResource(R.string.food_selected_serving, numberFormat(servingQuantity), servingLabel(choice))
+                    val equivalent = selectedPortion?.let { portion ->
+                        when {
+                            food.baseUnit == FoodUnit.MILLILITER && portion.milliliters != null ->
+                                basisLabel(servingQuantity * portion.milliliters, FoodUnit.MILLILITER)
+                            portion.grams != null -> basisLabel(servingQuantity * portion.grams, FoodUnit.GRAM)
+                            portion.milliliters != null -> basisLabel(servingQuantity * portion.milliliters, FoodUnit.MILLILITER)
+                            else -> null
+                        }
+                    }
+                    Text(if (equivalent == null) selection
+                        else stringResource(R.string.food_selected_serving_equivalent, selection, equivalent),
+                        Modifier.testTag("food_selected_serving"), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         item(key = "macros", contentType = "card") {

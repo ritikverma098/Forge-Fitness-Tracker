@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.forge.workout.nutrition.catalog.CatalogInstallResult
 import com.forge.workout.nutrition.catalog.CatalogLoadState
 import com.forge.workout.nutrition.catalog.FoodCatalogService
+import com.forge.workout.nutrition.catalog.OfficialCatalogPacks
 import com.forge.workout.nutrition.model.CatalogPackEntity
 import com.forge.workout.nutrition.model.FoodEntity
 import com.forge.workout.nutrition.model.FoodSourceType
@@ -20,7 +21,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,6 +38,8 @@ data class CatalogUiState(
     val busy: Boolean = false,
     val feedback: CatalogFeedback? = null,
     val readFailed: Boolean = false,
+    val packsReady: Boolean = false,
+    val officialPackId: String? = null,
 ) {
     val totalFoods: Int get() = packs.sumOf { it.foodCount.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 }
@@ -42,19 +48,23 @@ data class CatalogUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class CatalogViewModel(
     private val service: FoodCatalogService,
-    repository: NutritionRepository,
+    private val repository: NutritionRepository,
 ) : ViewModel() {
     private val feedback = MutableStateFlow<CatalogFeedback?>(null)
     private val working = MutableStateFlow(false)
     private val readFailed = MutableStateFlow(false)
+    private val officialPackId = MutableStateFlow<String?>(null)
     private val queryGeneration = MutableStateFlow(0)
     private var operation: Job? = null
     private var bundledRequested = false
     private val packs = queryGeneration.flatMapLatest {
-        repository.observeCatalogPacks().onStart { emit(emptyList()) }.catch { failure ->
+        flow<List<CatalogPackEntity>?> {
+            emit(null)
+            emitAll(repository.observeCatalogPacks())
+        }.catch { failure ->
             if (failure is CancellationException) throw failure
             readFailed.value = true
-            emit(emptyList())
+            emit(null)
         }
     }
     private val foods = queryGeneration.flatMapLatest {
@@ -67,9 +77,13 @@ class CatalogViewModel(
 
     // Room's first read may wait behind the atomic import. Seed the read flows so
     // service progress and cancellation remain observable during that wait.
-    val state = combine(packs, foods, service.state, feedback, combine(working, readFailed) { busy, failed -> busy to failed }) {
-        packs, foods, progress, message, flags ->
-        CatalogUiState(packs, foods, progress, flags.first || progress.busy, message, flags.second)
+    private val operationFlags = combine(working, readFailed, officialPackId) { busy, failed, packId ->
+        Triple(busy, failed, packId)
+    }
+    val state = combine(packs, foods, service.state, feedback, operationFlags) {
+        packs, foods, progress, message, (busy, failed, packId) ->
+        CatalogUiState(packs.orEmpty(), foods, progress, busy || progress.busy, message, failed,
+            packsReady = packs != null, officialPackId = packId)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogUiState())
 
     fun ensureBundled() {
@@ -86,8 +100,20 @@ class CatalogViewModel(
 
     fun installDocument(uri: Uri) = perform { service.installDocument(uri) }
 
+    fun installOfficialPack(id: String) {
+        val pack = OfficialCatalogPacks.available.firstOrNull { it.id == id } ?: return
+        val current = state.value
+        if (!current.packsReady || !pack.status(current.packs.firstOrNull { it.id == id }).canInstall) return
+        perform(packId = id) {
+            // A completed import may have committed before the screen receives Room invalidation.
+            val installed = repository.observeCatalogPacks().first().firstOrNull { it.id == id }
+            if (pack.status(installed).canInstall) service.installUrl(pack.downloadUrl, pack.archiveSha256) else null
+        }
+    }
+
     fun installUrl(url: String, expectedSha256: String) {
         if (isBusy()) return
+        officialPackId.value = null
         val address = url.trim()
         val checksum = expectedSha256.trim().lowercase(Locale.ROOT)
         if (!validUrl(address)) {
@@ -111,6 +137,7 @@ class CatalogViewModel(
     fun clearFeedback() {
         feedback.value = null
         service.clearError()
+        if (!isBusy()) officialPackId.value = null
     }
 
     fun retryRead() {
@@ -120,20 +147,27 @@ class CatalogViewModel(
 
     private fun isBusy() = working.value || service.state.value.busy
 
-    private fun perform(showAlreadyInstalled: Boolean = true, block: suspend () -> CatalogInstallResult) {
+    private fun perform(
+        showAlreadyInstalled: Boolean = true,
+        packId: String? = null,
+        block: suspend () -> CatalogInstallResult?,
+    ) {
         if (isBusy()) return
         working.value = true
         feedback.value = null
+        officialPackId.value = packId
         service.clearError()
         // Completion also handles cancellation before a queued coroutine starts executing.
         val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             try {
                 val result = block()
                 feedback.value = when {
+                    result == null -> null
                     result.alreadyInstalled && !showAlreadyInstalled -> null
                     result.alreadyInstalled -> CatalogFeedback.ALREADY_INSTALLED
                     else -> CatalogFeedback.INSTALLED
                 }
+                officialPackId.value = null
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {

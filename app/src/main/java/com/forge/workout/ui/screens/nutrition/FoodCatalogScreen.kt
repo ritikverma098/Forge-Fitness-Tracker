@@ -1,5 +1,6 @@
 package com.forge.workout.ui.screens.nutrition
 
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -61,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.nutrition.catalog.CatalogIssue
+import com.forge.workout.nutrition.catalog.OfficialCatalogPack
+import com.forge.workout.nutrition.catalog.OfficialCatalogPacks
+import com.forge.workout.nutrition.catalog.OfficialCatalogPackStatus
 import com.forge.workout.nutrition.model.CatalogPackEntity
 import com.forge.workout.nutrition.model.FoodEntity
 import com.forge.workout.nutrition.model.FoodUnit
@@ -176,6 +181,12 @@ fun FoodCatalogScreen(
                             Icons.Rounded.Restaurant, viewModel::retryBundled, stringResource(R.string.catalog_retry_bundled))
                     }
                 }
+                item(key = "available_heading", contentType = "heading") {
+                    Text(stringResource(R.string.catalog_available_title), style = MaterialTheme.typography.titleLarge)
+                }
+                items(OfficialCatalogPacks.available, key = { "available_${it.id}" }, contentType = { "pack" }) { pack ->
+                    AvailableCatalogCard(pack, state, openLink, { viewModel.installOfficialPack(pack.id) }, viewModel::cancel)
+                }
                 if (state.packs.isNotEmpty()) item(key = "installed_heading", contentType = "heading") {
                     Text(stringResource(R.string.catalog_installed_title), style = MaterialTheme.typography.titleLarge)
                 }
@@ -209,6 +220,66 @@ private fun CatalogCard(modifier: Modifier = Modifier, content: @Composable Colu
 }
 
 @Composable
+private fun AvailableCatalogCard(
+    pack: OfficialCatalogPack,
+    state: CatalogUiState,
+    openLink: (String) -> Unit,
+    onDownload: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val installed = state.packs.firstOrNull { it.id == pack.id }
+    val status = pack.status(installed)
+    val selected = state.officialPackId == pack.id
+    val downloading = selected && state.busy
+    val failed = selected && state.feedback == CatalogFeedback.FAILED
+    val context = LocalContext.current
+    val downloadSize = remember(context, pack.archiveBytes) { Formatter.formatShortFileSize(context, pack.archiveBytes) }
+
+    CatalogCard(Modifier.testTag("catalog_available_${pack.id}")) {
+        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(pack.regionRes), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(pack.descriptionRes), style = MaterialTheme.typography.bodyMedium)
+        Text(pluralStringResource(R.plurals.catalog_verified_foods, pack.foodCount, pack.foodCount),
+            style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.catalog_download_size, downloadSize), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.catalog_pack_version, pack.version), style = MaterialTheme.typography.bodySmall)
+        if (installed != null) {
+            Text(stringResource(R.string.catalog_installed_version, installed.version), style = MaterialTheme.typography.bodySmall)
+        }
+        Text(stringResource(R.string.catalog_pack_source, pack.citation), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.catalog_pack_license, pack.license), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { openLink(pack.sourceUrl) }) { Text(stringResource(R.string.catalog_view_source)) }
+            TextButton(onClick = { openLink(pack.licenseUrl) }) { Text(stringResource(R.string.catalog_view_license)) }
+        }
+        when {
+            downloading -> {
+                Text(stringResource(R.string.catalog_official_downloading), style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.catalog_cancel)) }
+            }
+            status.canInstall -> {
+                if (failed) feedbackResource(state)?.let { message ->
+                    Text(stringResource(message), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                OutlinedButton(onClick = onDownload, enabled = state.packsReady && !state.busy && !state.readFailed,
+                    modifier = Modifier.fillMaxWidth().testTag("catalog_official_download_${pack.id}")) {
+                    Text(stringResource(when {
+                        failed -> R.string.catalog_official_retry
+                        status == OfficialCatalogPackStatus.UPDATE -> R.string.catalog_official_update
+                        else -> R.string.catalog_official_download
+                    }))
+                }
+            }
+            else -> Text(stringResource(if (status == OfficialCatalogPackStatus.INSTALLED) R.string.catalog_installed_status
+                else R.string.catalog_official_other_installed),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
 private fun InstalledCatalogCard(pack: CatalogPackEntity, openLink: (String) -> Unit) {
     CatalogCard(Modifier.testTag("catalog_pack_${pack.id}")) {
         Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -228,9 +299,14 @@ private fun InstalledCatalogCard(pack: CatalogPackEntity, openLink: (String) -> 
             Spacer(Modifier.size(8.dp))
             Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))
         }
-        if (pack.license.contains("CC0", ignoreCase = true)) TextButton(onClick = {
-            openLink("https://creativecommons.org/publicdomain/zero/1.0/")
-        }) { Text(stringResource(R.string.catalog_view_license)) }
+        val licenseUrl = when {
+            pack.license.contains("CC0", ignoreCase = true) -> "https://creativecommons.org/publicdomain/zero/1.0/"
+            pack.license.startsWith("CC BY 4.0", ignoreCase = true) -> "https://creativecommons.org/licenses/by/4.0/"
+            else -> null
+        }
+        if (licenseUrl != null) TextButton(onClick = { openLink(licenseUrl) }) {
+            Text(stringResource(R.string.catalog_view_license))
+        }
     }
 }
 

@@ -5,17 +5,29 @@
     <string name="catalog_manage_title">Your offline library</string>
     <string name="catalog_manage_description">The included catalog installs when you open Nutrition. Add a trusted .forgefoods pack from a file or an optional download.</string>
     <string name="catalog_import">Import pack</string>
-    <string name="catalog_download">Download pack</string>
+    <string name="catalog_download">Download by URL</string>
     <string name="catalog_retry_bundled">Retry included catalog</string>
     <string name="catalog_cancel">Cancel operation</string>
     <string name="catalog_preparing">Preparing catalog…</string>
     <string name="catalog_progress_percent">%1$d%% complete</string>
     <string name="catalog_installed_title">Installed catalogs</string>
+    <string name="catalog_available_title">Optional food packs</string>
+    <string name="catalog_india_description">Packaged snacks, sweets, dairy, instant mixes and pantry foods labeled for India.</string>
+    <string name="catalog_india_region">India market</string>
+    <string name="catalog_usda_description">International packaged foods with label servings, including imported Indian brands and dishes.</string>
+    <string name="catalog_usda_region">United States and New Zealand markets</string>
+    <string name="catalog_download_size">Download size: about %1$s</string>
+    <string name="catalog_installed_version">Installed version %1$s</string>
+    <string name="catalog_official_download">Download and install</string>
+    <string name="catalog_official_update">Update pack</string>
+    <string name="catalog_official_retry">Try download again</string>
+    <string name="catalog_official_downloading">Downloading and checking pack…</string>
+    <string name="catalog_official_other_installed">Forge keeps your installed revision. Use Import pack to replace it.</string>
     <string name="catalog_pack_version">Version %1$s</string>
     <string name="catalog_pack_source">Source: %1$s</string>
     <string name="catalog_pack_license">License: %1$s</string>
     <string name="catalog_view_source">View source</string>
-    <string name="catalog_view_license">CC0 license</string>
+    <string name="catalog_view_license">View license</string>
     <string name="catalog_empty_title">No catalog installed</string>
     <string name="catalog_empty_description">Install the included catalog or import a pack to browse reference foods.</string>
     <string name="catalog_preview_title">A look inside</string>
@@ -48,6 +60,10 @@
     <plurals name="catalog_total_foods">
         <item quantity="one">%1$d reference food</item>
         <item quantity="other">%1$d reference foods</item>
+    </plurals>
+    <plurals name="catalog_verified_foods">
+        <item quantity="one">%1$d verified food</item>
+        <item quantity="other">%1$d verified foods</item>
     </plurals>
     <plurals name="catalog_pack_foods">
         <item quantity="one">%1$d food installed</item>

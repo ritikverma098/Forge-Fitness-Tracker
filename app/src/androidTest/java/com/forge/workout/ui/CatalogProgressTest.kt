@@ -140,9 +140,13 @@ class CatalogProgressTest {
         assertFalse(repository.releasePacks.isCompleted)
         assertFalse(repository.releaseFoods.isCompleted)
 
+        val officialDownload = "catalog_official_download_india-packaged"
+        scrollTo(officialDownload)
+        compose.onNodeWithTag(officialDownload).assertIsNotEnabled()
         repository.releasePacks.complete(Unit)
         compose.waitUntil(10_000) { model.state.value.packs == listOf(pack) }
         assertTrue(model.state.value.foods.isEmpty())
+        compose.onNodeWithTag(officialDownload).assertIsEnabled()
         scrollTo("catalog_pack_${pack.id}")
         repository.releaseFoods.complete(Unit)
         compose.waitUntil(10_000) { model.state.value.foods.singleOrNull()?.id == food.id }

@@ -17,40 +17,36 @@ class RoomNutritionRepository(private val database: ForgeDatabase) : NutritionRe
     private val dao = database.nutritionDao()
 
     override fun observeFoodPage(query: String, filter: FoodBrowseFilter, limit: Int, offset: Int): Flow<List<FoodEntity>> {
-        val match = searchExpression(query, limit, offset)
-        if (query.isNotBlank() && match.isEmpty()) return flowOf(emptyList())
-        val usage = filter == FoodBrowseFilter.RECENT || filter == FoodBrowseFilter.FREQUENT
+        val search = FoodSearchTerms(query, limit, offset)
+        if (search.term.isNotEmpty() && search.match.isEmpty()) return flowOf(emptyList())
+        val frequent = filter == FoodBrowseFilter.FREQUENT
+        val usage = frequent || filter == FoodBrowseFilter.RECENT
         return when {
-            usage && match.isEmpty() -> dao.observeUsedFoodPage(filter == FoodBrowseFilter.FREQUENT, limit, offset)
-            usage -> dao.observeUsedFoodSearchPage(match, filter == FoodBrowseFilter.FREQUENT, limit, offset)
-            match.isEmpty() -> dao.observeFoodPage(filter.name, limit, offset)
-            else -> dao.observeFoodSearchPage(match, filter.name, limit, offset)
+            usage && search.match.isEmpty() -> dao.observeUsedFoodPage(frequent, limit, offset)
+            usage -> dao.observeUsedFoodSearchPage(search.match, search.alternate, frequent, limit, offset)
+            search.match.isEmpty() -> dao.observeFoodPage(filter.name, limit, offset)
+            else -> dao.observeFoodSearchPage(search.match, search.alternate, search.term, filter.name, limit, offset)
         }
     }
 
     override fun observeFoods(query: String, sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean,
         limit: Int, offset: Int): Flow<List<FoodEntity>> {
-        val match = searchExpression(query, limit, offset)
+        val search = FoodSearchTerms(query, limit, offset)
         return when {
-            query.isNotBlank() && match.isEmpty() -> flowOf(emptyList())
-            match.isEmpty() -> dao.observeFoods(sourceType, region, favoritesOnly, limit, offset)
-            else -> dao.observeSearch(match, sourceType, region, favoritesOnly, limit, offset)
+            search.term.isNotEmpty() && search.match.isEmpty() -> flowOf(emptyList())
+            search.match.isEmpty() -> dao.observeFoods(sourceType, region, favoritesOnly, limit, offset)
+            else -> dao.observeSearch(search.match, search.alternate, search.term, sourceType, region, favoritesOnly,
+                limit, offset)
         }
     }
     override suspend fun searchFoods(query: String, sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean,
         limit: Int, offset: Int): List<FoodEntity> {
-        val match = searchExpression(query, limit, offset)
+        val search = FoodSearchTerms(query, limit, offset)
         return when {
-            query.isNotBlank() && match.isEmpty() -> emptyList()
-            match.isEmpty() -> dao.foods(sourceType, region, favoritesOnly, limit, offset)
-            else -> dao.search(match, sourceType, region, favoritesOnly, limit, offset)
+            search.term.isNotEmpty() && search.match.isEmpty() -> emptyList()
+            search.match.isEmpty() -> dao.foods(sourceType, region, favoritesOnly, limit, offset)
+            else -> dao.search(search.match, search.alternate, search.term, sourceType, region, favoritesOnly, limit, offset)
         }
-    }
-    private fun searchExpression(query: String, limit: Int, offset: Int): String {
-        NutritionValidation.page(limit, offset)
-        NutritionValidation.text(query, 250, "Search", true)
-        // Only literal Unicode word prefixes reach MATCH; operators/punctuation cannot become FTS syntax.
-        return Regex("[\\p{L}\\p{N}]+").findAll(query).map { it.value }.take(32).joinToString(" ") { "\"$it*\"" }
     }
     override fun observeFood(id: String): Flow<FoodDetail?> { NutritionValidation.id(id); return dao.observeFood(id) }
     override suspend fun food(id: String): FoodDetail? { NutritionValidation.id(id); return dao.food(id) }

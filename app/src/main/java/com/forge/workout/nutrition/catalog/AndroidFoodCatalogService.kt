@@ -28,6 +28,7 @@ class AndroidFoodCatalogService(
     database: ForgeDatabase,
     private val bundledAsset: String = "nutrition/usda-core.forgefoods",
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
 ) : FoodCatalogService {
     private val context = context.applicationContext
     private val dao = database.nutritionDao()
@@ -127,7 +128,7 @@ class AndroidFoodCatalogService(
     private suspend fun download(address: String, expectedSha256: String): CatalogInstallResult {
         var url = secureUrl(address)
         repeat(MAX_REDIRECTS + 1) { attempt ->
-            val connection = url.openConnection() as HttpURLConnection
+            val connection = openConnection(url)
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.instanceFollowRedirects = false

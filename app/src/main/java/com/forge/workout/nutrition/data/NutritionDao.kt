@@ -9,13 +9,42 @@ import androidx.room.Upsert
 import com.forge.workout.nutrition.model.*
 import kotlinx.coroutines.flow.Flow
 
+// Combine matching row IDs before ranking and keep FTS as the driver of the food lookup.
+private const val MATCHING_FOODS = """
+    FROM (
+        SELECT rowid FROM nutrition_food_search WHERE nutrition_food_search MATCH :match
+        UNION
+        SELECT rowid FROM nutrition_food_search
+        WHERE :alternate IS NOT NULL AND nutrition_food_search MATCH :alternate
+    ) matches
+    CROSS JOIN nutrition_foods f ON f.rowid = matches.rowid
+"""
+private const val SEARCH_RELEVANCE = """
+    CASE WHEN f.name = :term COLLATE NOCASE THEN 0
+         WHEN f.brand = :term COLLATE NOCASE THEN 1
+         WHEN SUBSTR(f.name, 1, LENGTH(:term)) = :term COLLATE NOCASE THEN 2
+         WHEN SUBSTR(f.brand, 1, LENGTH(:term)) = :term COLLATE NOCASE THEN 3
+         ELSE 4 END
+"""
+private const val IS_FAVORITE = "EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id)"
+private const val LAST_LOGGED = "(SELECT MAX(loggedAt) FROM nutrition_diary WHERE foodId = f.id)"
+private const val FILTERED_FOOD_SEARCH = """
+    SELECT f.* $MATCHING_FOODS
+    WHERE f.archived = 0
+        AND (:sourceType IS NULL OR f.sourceType = :sourceType)
+        AND (:region IS NULL OR f.region = :region COLLATE NOCASE)
+        AND (:favoritesOnly = 0 OR $IS_FAVORITE)
+    ORDER BY $SEARCH_RELEVANCE, $IS_FAVORITE DESC, $LAST_LOGGED DESC,
+             f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset
+"""
+
 @Dao
 interface NutritionDao {
     @Query("""
         SELECT f.* FROM nutrition_foods f
         WHERE f.archived = 0 AND (
             :filter = 'ALL'
-            OR (:filter = 'FAVORITES' AND EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id))
+            OR (:filter = 'FAVORITES' AND $IS_FAVORITE)
             OR (:filter = 'INDIAN' AND f.region = 'IN' COLLATE NOCASE)
             OR (:filter = 'BRANDED' AND LENGTH(TRIM(f.brand)) > 0)
         )
@@ -24,17 +53,20 @@ interface NutritionDao {
     fun observeFoodPage(filter: String, limit: Int, offset: Int): Flow<List<FoodEntity>>
 
     @Query("""
-        SELECT f.* FROM nutrition_foods f
-        INNER JOIN nutrition_food_search ON f.rowid = nutrition_food_search.rowid
-        WHERE nutrition_food_search MATCH :match AND f.archived = 0 AND (
+        SELECT f.* $MATCHING_FOODS
+        WHERE f.archived = 0 AND (
             :filter = 'ALL'
-            OR (:filter = 'FAVORITES' AND EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id))
+            OR (:filter = 'FAVORITES' AND $IS_FAVORITE)
             OR (:filter = 'INDIAN' AND f.region = 'IN' COLLATE NOCASE)
             OR (:filter = 'BRANDED' AND LENGTH(TRIM(f.brand)) > 0)
         )
-        ORDER BY f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset
+        ORDER BY $SEARCH_RELEVANCE,
+                 CASE WHEN :filter = 'ALL' THEN $IS_FAVORITE ELSE 0 END DESC,
+                 CASE WHEN :filter = 'ALL' THEN $LAST_LOGGED END DESC,
+                 f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset
     """)
-    fun observeFoodSearchPage(match: String, filter: String, limit: Int, offset: Int): Flow<List<FoodEntity>>
+    fun observeFoodSearchPage(match: String, alternate: String?, term: String, filter: String, limit: Int,
+        offset: Int): Flow<List<FoodEntity>>
 
     @Query("""
         SELECT f.* FROM nutrition_foods f
@@ -47,24 +79,26 @@ interface NutritionDao {
     fun observeUsedFoodPage(frequent: Boolean, limit: Int, offset: Int): Flow<List<FoodEntity>>
 
     @Query("""
-        SELECT f.* FROM nutrition_foods f
-        INNER JOIN nutrition_food_search ON f.rowid = nutrition_food_search.rowid
+        SELECT f.* $MATCHING_FOODS
         INNER JOIN (SELECT foodId, COUNT(*) AS logCount, MAX(loggedAt) AS lastLoggedAt
                     FROM nutrition_diary WHERE foodId IS NOT NULL GROUP BY foodId) usage ON usage.foodId = f.id
-        WHERE nutrition_food_search MATCH :match AND f.archived = 0
+        WHERE f.archived = 0
         ORDER BY CASE WHEN :frequent THEN usage.logCount ELSE 0 END DESC,
                  usage.lastLoggedAt DESC, f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset
     """)
-    fun observeUsedFoodSearchPage(match: String, frequent: Boolean, limit: Int, offset: Int): Flow<List<FoodEntity>>
+    fun observeUsedFoodSearchPage(match: String, alternate: String?, frequent: Boolean, limit: Int,
+        offset: Int): Flow<List<FoodEntity>>
 
     @Query("SELECT f.* FROM nutrition_foods f WHERE f.archived = 0 AND (:sourceType IS NULL OR f.sourceType = :sourceType) AND (:region IS NULL OR f.region = :region COLLATE NOCASE) AND (:favoritesOnly = 0 OR EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id)) ORDER BY f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset")
     fun observeFoods(sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean, limit: Int, offset: Int): Flow<List<FoodEntity>>
     @Query("SELECT f.* FROM nutrition_foods f WHERE f.archived = 0 AND (:sourceType IS NULL OR f.sourceType = :sourceType) AND (:region IS NULL OR f.region = :region COLLATE NOCASE) AND (:favoritesOnly = 0 OR EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id)) ORDER BY f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset")
     suspend fun foods(sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean, limit: Int, offset: Int): List<FoodEntity>
-    @Query("SELECT f.* FROM nutrition_foods f INNER JOIN nutrition_food_search ON f.rowid = nutrition_food_search.rowid WHERE nutrition_food_search MATCH :match AND f.archived = 0 AND (:sourceType IS NULL OR f.sourceType = :sourceType) AND (:region IS NULL OR f.region = :region COLLATE NOCASE) AND (:favoritesOnly = 0 OR EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id)) ORDER BY f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset")
-    fun observeSearch(match: String, sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean, limit: Int, offset: Int): Flow<List<FoodEntity>>
-    @Query("SELECT f.* FROM nutrition_foods f INNER JOIN nutrition_food_search ON f.rowid = nutrition_food_search.rowid WHERE nutrition_food_search MATCH :match AND f.archived = 0 AND (:sourceType IS NULL OR f.sourceType = :sourceType) AND (:region IS NULL OR f.region = :region COLLATE NOCASE) AND (:favoritesOnly = 0 OR EXISTS (SELECT 1 FROM nutrition_favorites favorite WHERE favorite.foodId = f.id)) ORDER BY f.name COLLATE NOCASE, f.id LIMIT :limit OFFSET :offset")
-    suspend fun search(match: String, sourceType: FoodSourceType?, region: String?, favoritesOnly: Boolean, limit: Int, offset: Int): List<FoodEntity>
+    @Query(FILTERED_FOOD_SEARCH)
+    fun observeSearch(match: String, alternate: String?, term: String, sourceType: FoodSourceType?, region: String?,
+        favoritesOnly: Boolean, limit: Int, offset: Int): Flow<List<FoodEntity>>
+    @Query(FILTERED_FOOD_SEARCH)
+    suspend fun search(match: String, alternate: String?, term: String, sourceType: FoodSourceType?, region: String?,
+        favoritesOnly: Boolean, limit: Int, offset: Int): List<FoodEntity>
     @Transaction @Query("SELECT * FROM nutrition_foods WHERE id = :id") fun observeFood(id: String): Flow<FoodDetail?>
     @Transaction @Query("SELECT * FROM nutrition_foods WHERE id = :id") suspend fun food(id: String): FoodDetail?
     @Query("SELECT * FROM nutrition_foods WHERE id = :id") suspend fun foodRow(id: String): FoodEntity?

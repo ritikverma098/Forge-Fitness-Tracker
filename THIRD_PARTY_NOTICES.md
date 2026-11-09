@@ -6,7 +6,7 @@ These notices cover third-party material included in or used by Forge. They do n
 
 **Attribution:** U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.
 
-The bundled `app/src/main/assets/nutrition/usda-core.forgefoods`, its report, and `tools/catalog/source-samples/` contain public USDA FoodData Central records. USDA states that FoodData Central data are public domain and published under CC0 1.0. This includes the branded records selected from FoodData Central; no manufacturer images or packaging artwork are included.
+The bundled `app/src/main/assets/nutrition/usda-core.forgefoods`, its report, `tools/catalog/source-samples/`, and the separately distributed `forge-usda-branded-1.0.0.forgefoods` contain public USDA FoodData Central records. USDA states that FoodData Central data are public domain and published under CC0 1.0. This includes the branded records selected from FoodData Central. The packs contain no manufacturer images or packaging artwork.
 
 - [USDA usage and licensing guidance](https://fdc.nal.usda.gov/api-guide/#bkmk-9)
 - [CC0 1.0 dedication](https://creativecommons.org/publicdomain/zero/1.0/)
@@ -15,6 +15,12 @@ The bundled `app/src/main/assets/nutrition/usda-core.forgefoods`, its report, an
 - [Bundled source/hash report](app/src/main/assets/nutrition/usda-core.forgefoods.report.json)
 
 No Samsung Health, Open Food Facts or ICMR-NIN database is included. Additional packs require their own verified redistribution rights and attribution.
+
+## Indian Packaged Foods Nutritional Composition Dataset
+
+**Attribution:** Duddela Sai Prashanth, Ananya Devadiga, Saathwik Saathwik, Priya R Kamath and Rakshith Bhandary (2026). *Indian Packaged Foods Nutritional Composition Dataset (2026)*, version 1, Mendeley Data.
+
+The separate `forge-india-packaged-1.0.0.forgefoods` is distributed under the source's Creative Commons Attribution 4.0 International license. Forge filters source records, maps units and serving values to the pack format, and omits unclear or implausible nutrition data. The original CSV and packaging artwork are outside the APK. [Dataset DOI](https://doi.org/10.17632/rhswn9z9xr.1) · [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/) · [Import and exclusions](tools/catalog/README.md)
 
 ## Compendium of Physical Activities
 

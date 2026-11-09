@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 — 2026-11-09
+
+- Add two optional offline food packs with 631 India-market packaged foods and 13,041 USDA packaged foods from the US and New Zealand.
+- Add Food Catalog cards with pack coverage, version, download size, source, license and installation status. Download the official packs with pinned SHA-256 checksums or import a local pack through the same atomic installer.
+- Rank food search by name and brand relevance with favorite and recent tie-breakers. Add selected Indian synonyms, suppress duplicate matches by food ID, and show measured serving equivalents in Food Details.
+- Preserve personal nutrition and training data through catalog changes and backup restore. Keep `com.forge.workout`, Room schema 4, backup format 3, and the GitHub update checker. The optimized APK uses the 1.3.3 development/test certificate and version code 9.
+- Pass 635 host tests, 51 Android emulator tests, 21 importer tests, Android lint, and debug and optimized release builds. Verify the in-place upgrade from the published 1.3.3 APK and offline use of both packs on the Android 17 emulator.
+
 ## 1.3.3 — 2026-11-04
 
 ### Added

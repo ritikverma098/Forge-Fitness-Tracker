@@ -16,7 +16,12 @@ import com.forge.workout.nutrition.model.NutritionMath
 import com.forge.workout.nutrition.model.RecipeEntity
 import com.forge.workout.nutrition.model.RecipeIngredientEntity
 import com.forge.workout.nutrition.repository.RoomNutritionRepository
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -41,7 +46,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Real APK assets, document streams and disposable Room storage; no network or test assets. */
+/** Real APK assets and Room with controlled document and HTTPS streams. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class BundledCatalogServiceHostTest {
@@ -221,6 +226,61 @@ class BundledCatalogServiceHostTest {
         assertForeignKeys()
     }
 
+    @Test fun `interrupted and corrupt HTTPS downloads leave installed foods intact and a retry commits atomically`() = runBlocking<Unit> {
+        val original = importDocument(service(), archive("1.0.0", listOf("retained")))
+        val before = databaseGraph()
+        val updated = archive("1.1.0", listOf("retained", "second"), energy = 240.0)
+        val checksum = sha256(updated)
+        val interrupted = object : ByteArrayInputStream(updated.copyOf(64)) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also {
+                if (it == -1) throw IOException("Connection interrupted")
+            }
+        }
+        val url = "https://example.org/catalog.forgefoods"
+        val assetUrl = "https://assets.example.org/catalog.forgefoods"
+        val responses = ArrayDeque(listOf(
+            CatalogResponse(URL(url), input = interrupted),
+            CatalogResponse(URL(url), input = updated.copyOf(64).inputStream()),
+            CatalogResponse(URL(url), status = 302, location = assetUrl),
+            CatalogResponse(URL(assetUrl), input = updated.inputStream()),
+        ))
+        val disconnected = mutableListOf<CatalogResponse>()
+        val downloader = AndroidFoodCatalogService(application, database, openConnection = { address ->
+            responses.removeFirst().also { response ->
+                assertEquals(response.url.toString(), address.toString())
+                disconnected += response
+            }
+        })
+        for (issue in listOf(CatalogIssue.IO_ERROR, CatalogIssue.HASH_MISMATCH)) {
+            val failure = runCatching { downloader.installUrl(url, checksum) }.exceptionOrNull() as CatalogException
+            assertEquals(issue, failure.issue)
+            assertEquals(issue, downloader.state.value.error?.issue)
+            assertFalse(downloader.state.value.busy)
+            assertEquals(before, databaseGraph())
+        }
+        val installed = downloader.installUrl(url, checksum)
+        assertEquals(original.pack.id, installed.pack.id)
+        assertEquals("1.1.0", installed.pack.version)
+        assertEquals(2, installed.pack.foodCount)
+        assertEquals(null, downloader.state.value.error)
+        assertTrue(responses.isEmpty())
+        assertEquals(4, disconnected.size)
+        assertTrue(disconnected.all { it.closed })
+        assertForeignKeys()
+    }
+
+    private class CatalogResponse(url: URL, private val input: InputStream? = null, private val status: Int = 200,
+        private val location: String? = null) : HttpURLConnection(url) {
+        var closed = false
+            private set
+        override fun getResponseCode() = status
+        override fun getHeaderField(name: String?) = if (name == "Location") location else null
+        override fun getInputStream() = requireNotNull(input)
+        override fun disconnect() { closed = true }
+        override fun usingProxy() = false
+        override fun connect() = Unit
+    }
+
     private fun service() = AndroidFoodCatalogService(application, database)
 
     private suspend fun importDocument(service: AndroidFoodCatalogService, bytes: ByteArray): CatalogInstallResult {
@@ -273,8 +333,7 @@ class BundledCatalogServiceHostTest {
                     .put("source", "Regression source")))
         }
         val payload = rows.joinToString("\n", postfix = "\n").toByteArray(Charsets.UTF_8)
-        val digest = MessageDigest.getInstance("SHA-256").digest(payload)
-            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val digest = sha256(payload)
         val manifest = JSONObject().put("format", "forge-food-catalog").put("formatVersion", 1).put("id", PACK_ID)
             .put("name", "Explicit regression catalog").put("version", version)
             .put("sourceUrl", "https://example.invalid/catalog").put("license", "Regression fixture")
@@ -290,6 +349,9 @@ class BundledCatalogServiceHostTest {
             }
         }.toByteArray()
     }
+
+    private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 255) }
 
     private companion object {
         const val PACK_ID = "usda-core"

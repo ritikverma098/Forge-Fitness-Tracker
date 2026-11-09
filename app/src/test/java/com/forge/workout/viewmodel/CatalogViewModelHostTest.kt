@@ -11,6 +11,9 @@ import com.forge.workout.nutrition.catalog.CatalogInstallResult
 import com.forge.workout.nutrition.catalog.CatalogIssue
 import com.forge.workout.nutrition.catalog.CatalogLoadState
 import com.forge.workout.nutrition.catalog.FoodCatalogService
+import com.forge.workout.nutrition.catalog.OfficialCatalogPack
+import com.forge.workout.nutrition.catalog.OfficialCatalogPackStatus
+import com.forge.workout.nutrition.catalog.OfficialCatalogPacks
 import com.forge.workout.nutrition.model.CatalogPackEntity
 import com.forge.workout.nutrition.model.FoodDetail
 import com.forge.workout.nutrition.model.FoodEntity
@@ -194,6 +197,73 @@ class CatalogViewModelHostTest {
         assertEquals(original, repository.food("original"))
     }
 
+    @Test fun `official downloads wait for installed metadata and retry with the pinned archive checksum`() = runTest(dispatcher) {
+        val pack = OfficialCatalogPacks.available.single { it.id == "india-packaged" }
+        val packsRead = CompletableDeferred<List<CatalogPackEntity>>()
+        val delayedReads = object : NutritionRepository by repository {
+            override fun observeCatalogPacks(): Flow<List<CatalogPackEntity>> = flow { emit(packsRead.await()) }
+        }
+        val model = keep(delayedReads)
+        observe(model)
+        runCurrent()
+        assertFalse(model.state.value.packsReady)
+        model.installOfficialPack(pack.id)
+        runCurrent()
+        assertTrue(service.calls.isEmpty())
+
+        packsRead.complete(emptyList())
+        model.state.first { it.packsReady }
+        model.installOfficialPack("unknown-pack")
+        service.failure = CatalogException(CatalogIssue.IO_ERROR, "Interrupted download")
+        model.installOfficialPack(pack.id)
+        val failed = model.state.first { !it.busy && it.feedback == CatalogFeedback.FAILED }
+        assertEquals(pack.id, failed.officialPackId)
+        assertEquals(CatalogIssue.IO_ERROR, failed.operation.error?.issue)
+        assertEquals(listOf("url"), service.calls)
+        assertEquals("https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.0/" +
+            "forge-india-packaged-1.0.0.forgefoods", service.lastUrl)
+        assertEquals("7fc1b291170f04b2ce9e2a59625b6152fb6c992dc0e3dc12dc4b19a039073aa3", service.lastHash)
+
+        model.installOfficialPack(pack.id)
+        val installed = model.state.first { !it.busy && it.feedback == CatalogFeedback.INSTALLED }
+        assertEquals(null, installed.officialPackId)
+        assertEquals(listOf("url", "url"), service.calls)
+        assertEquals(pack.archiveSha256, service.lastHash)
+    }
+
+    @Test fun `official pack status compares numeric versions and protects newer or different installs`() {
+        val pack = OfficialCatalogPacks.available.first().copy(version = "1.10.0")
+        val installed = pack.installedFixture()
+        assertEquals(OfficialCatalogPackStatus.DOWNLOAD, pack.status(null))
+        assertEquals(OfficialCatalogPackStatus.INSTALLED, pack.status(installed))
+        assertEquals(OfficialCatalogPackStatus.UPDATE, pack.status(installed.copy(version = "1.9.9")))
+        assertEquals(OfficialCatalogPackStatus.DIFFERENT_VERSION, pack.status(installed.copy(version = "1.11.0")))
+        assertEquals(OfficialCatalogPackStatus.DIFFERENT_VERSION, pack.status(installed.copy(version = "1.9.9-test")))
+        assertEquals(OfficialCatalogPackStatus.DIFFERENT_VERSION, pack.status(installed.copy(sha256 = pack.archiveSha256)))
+        assertEquals(OfficialCatalogPackStatus.DIFFERENT_VERSION, pack.status(installed.copy(foodCount = 0)))
+    }
+
+    @Test fun `official download rechecks Room before replacing a newer installed pack`() = runTest(dispatcher) {
+        val pack = OfficialCatalogPacks.available.first()
+        val installed = pack.installedFixture().copy(version = "2.0.0")
+        var reads = 0
+        val delayedInvalidation = object : NutritionRepository by repository {
+            override fun observeCatalogPacks(): Flow<List<CatalogPackEntity>> = flow {
+                emit(if (++reads == 1) emptyList() else listOf(installed))
+            }
+        }
+        val model = keep(delayedInvalidation)
+        observe(model)
+        model.state.first { it.packsReady }
+        model.installOfficialPack(pack.id)
+        runCurrent()
+
+        assertEquals(2, reads)
+        assertTrue(service.calls.isEmpty())
+        assertFalse(model.state.value.busy)
+        assertEquals(null, model.state.value.officialPackId)
+    }
+
     @Test fun `food observation can retry after a transient read failure`() = runTest(dispatcher) {
         repository.upsertFood(FoodDetail(FoodEntity(id = "read-retry", name = "Loaded reference", sourceType = FoodSourceType.REFERENCE)))
         val observedRepository = ObservedCatalogRepository(repository, failFirstRead = true)
@@ -233,6 +303,9 @@ class CatalogViewModelHostTest {
     }
 
     private fun keep(source: NutritionRepository = repository) = CatalogViewModel(service, source).also { store.put("catalog", it) }
+
+    private fun OfficialCatalogPack.installedFixture() = CatalogPackEntity(id, name, version, sourceUrl, license, citation,
+        sha256 = payloadSha256, foodCount = foodCount)
 
     private fun TestScope.observe(model: CatalogViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.state.collect() }
