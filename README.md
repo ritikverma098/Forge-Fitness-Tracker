@@ -1,4 +1,4 @@
-# Forge 1.4.0
+# Forge 1.4.1
 
 [Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
 
@@ -10,11 +10,11 @@ Training and nutrition work offline, including the bundled food catalog. There a
 
 ## Download
 
-[Download Forge 1.4.0 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.0/Forge-1.4.0.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+[Download Forge 1.4.1 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.1/Forge-1.4.1.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
 
-Forge 1.4.0 adds two optional offline food packs and improved search. See the [changelog](CHANGELOG.md).
+Forge 1.4.1 corrects recipe-backup validation and stale workout-draft recovery after restore. It retains the offline food packs and improved search from 1.4.0. See the [changelog](CHANGELOG.md) and [reliability verification](docs/reliability-1.4.1.md).
 
-The downloadable APK is an optimized release build signed with the same **development/test certificate for sideloading** as 1.3.3. Android can install it in place over a copy signed with that certificate. Production distribution requires a separate signing transition. The source project's `assembleRelease` produces an unsigned APK.
+The downloadable APK is an optimized release build signed with the same **development/test certificate for sideloading** as 1.4.0. Android can install it in place over a copy signed with that certificate. Production distribution requires a separate signing transition. The source project's `assembleRelease` produces an unsigned APK.
 
 ## In-app update checks
 
@@ -24,7 +24,7 @@ Forge compares stable version numbers numerically and accepts an uploaded APK fr
 
 To prepare the next compatible release:
 
-1. Set a higher `versionCode` (at least 10 after 1.4.0) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
+1. Set a higher `versionCode` (at least 11 after 1.4.1) and the intended stable `versionName` in `app/build.gradle.kts`. Keep the application ID `com.forge.workout`.
 2. Build the optimized APK with `assembleRelease`. Sign it outside the repository with the existing Forge distribution certificate. Use `apksigner verify --verbose --print-certs` to compare its certificate to the previous APK, then test an in-place upgrade with existing data. [Android APK signing tool](https://developer.android.com/tools/apksigner)
 3. Publish a stable GitHub release from the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm that the public API returns that tag and the uploaded APK URL. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 
@@ -32,7 +32,7 @@ Plan production signing as a separate transition. Keep the signing key, password
 
 ## Screenshots
 
-Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Forge 1.4.0 retains these layouts.
+Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Forge 1.4.1 retains these layouts.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -42,11 +42,17 @@ Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. For
 
 ## Development status
 
-Forge **1.4.0** adds optional catalog packs and ranked food search to the workout and nutrition features in **1.3.3**. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery.
+Forge **1.4.1** is a focused reliability update to the optional catalog packs and ranked food search in **1.4.0**. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and wider regional food coverage where suitable redistribution rights and source data are available.
 
 ### Current stability update
+
+- Recipe backups must match their frozen ingredient totals and serving conversions before restore can modify data.
+- Saved workout drafts cannot replay across a completed backup restore after Android saved-task process recreation. Normal pending-edit recovery is preserved.
+- See the [1.4.1 verification report](docs/reliability-1.4.1.md) for regression counts and actual emulator lifecycle evidence.
+
+### Earlier navigation and scrolling fixes
 
 - Home consistently returns to its retained destination after starting a routine.
 - Food catalog progress and Cancel remain available while initial database reads wait for import.

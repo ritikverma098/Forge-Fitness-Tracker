@@ -34,4 +34,5 @@ interface BackupRepository {
     suspend fun snapshot(): ForgeBackup
     suspend fun restore(backup: ForgeBackup, beforeCommit: suspend () -> Unit = {})
     suspend fun recoverInterruptedRestore() = Unit
+    suspend fun workoutDraftGeneration(): String? = null
 }

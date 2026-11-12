@@ -389,8 +389,110 @@ class WorkoutDraftRecoveryTest {
         assertEquals(2, repository.textAttempts.size)
     }
 
-    private fun model(repository: WorkoutRepository, state: SavedStateHandle): WorkoutViewModel =
-        WorkoutViewModel(repository, { it.message.orEmpty() }, savedState = state).also {
+    @Test fun `saved numeric and text assignments from before restore cannot replay against matching restored rows`() = runTest {
+        var databaseGeneration: String? = null
+        val repository = DraftRepository().apply { failures = 1; textFailures = 2 }
+        val state = SavedStateHandle()
+        val original = model(repository, state) { databaseGeneration }
+        original.setValue(20, SetField.WEIGHT, 80.0)
+        original.rename(1, "Obsolete workout", "Obsolete workout note")
+        original.exerciseNotes(10, "Obsolete exercise note")
+        assertFalse(original.flush())
+        val capturedWhileStopped = copyState(state)
+        databaseGeneration = "restored-database"
+        original.resetAfterRestore()
+        assertTrue(original.flush())
+        stores.last().clear()
+        val numericAttempts = repository.attempts.size
+        val textAttempts = repository.textAttempts.size
+
+        val recreated = model(repository, capturedWhileStopped) { databaseGeneration }
+        assertTrue(recreated.flush())
+        assertEquals(60.0, repository.rows.getValue(20).weight, 0.0)
+        assertEquals("Original workout", repository.workoutRow!!.name)
+        assertEquals("Stored workout note", repository.workoutRow!!.notes)
+        assertEquals("Stored exercise note", repository.exerciseRow!!.notes)
+        assertTrue(recreated.numericDrafts(20).value.isEmpty())
+        assertNull(recreated.workoutDrafts(1).value)
+        assertNull(recreated.exerciseNoteDrafts(10).value)
+        recreated.retryFailedChanges()
+        assertTrue(recreated.flush())
+        assertEquals(numericAttempts, repository.attempts.size)
+        assertEquals(textAttempts, repository.textAttempts.size)
+    }
+
+    @Test fun `same generation keeps exact failed save recovery after a prior restore`() = runTest {
+        val repository = DraftRepository().apply { failures = 1 }
+        val state = SavedStateHandle()
+        val exact = com.forge.workout.preferences.WeightUnit.LB.toKg(0.01)
+        val original = model(repository, state) { "restored-database" }
+        original.setValue(20, SetField.WEIGHT, exact)
+        assertFalse(original.flush())
+        val captured = copyState(state)
+        stores.last().clear()
+        val recreated = model(repository, captured) { "restored-database" }
+        assertTrue(recreated.flush())
+        assertEquals(exact, repository.rows.getValue(20).weight, 0.0)
+    }
+
+    @Test fun `post restore edit captured before its first database read remains recoverable for review`() = runTest {
+        val repository = DraftRepository()
+        val state = SavedStateHandle()
+        val original = model(repository, state) { "restored-database" }
+        original.setValue(20, SetField.WEIGHT, 80.0)
+        val captured = copyState(state)
+        stores.last().clear()
+        val recreated = model(repository, captured) { "restored-database" }
+        assertEquals(80.0, recreated.numericDrafts(20).value.getValue(SetField.WEIGHT), 0.0)
+        assertFalse(recreated.flush())
+        assertTrue(repository.attempts.isEmpty())
+        recreated.retryFailedChanges()
+        assertTrue(recreated.flush())
+        assertEquals(80.0, repository.rows.getValue(20).weight, 0.0)
+    }
+
+    @Test fun `legacy generationless journals are obsolete after a durable restore`() = runTest {
+        fun legacy() = SavedStateHandle(mapOf(WorkoutDraftJournal.KEY to arrayListOf(
+            arrayListOf<Any?>(20L, SetField.WEIGHT.name, 80.0, 1L, 60.0))))
+        val restoredRepository = DraftRepository()
+        val obsolete = model(restoredRepository, legacy()) { "restored-database" }
+        assertTrue(obsolete.flush())
+        assertEquals(60.0, restoredRepository.rows.getValue(20).weight, 0.0)
+        assertTrue(restoredRepository.attempts.isEmpty())
+        val originalRepository = DraftRepository()
+        val compatible = model(originalRepository, legacy())
+        assertTrue(compatible.flush())
+        assertEquals(80.0, originalRepository.rows.getValue(20).weight, 0.0)
+    }
+
+    @Test fun `retained writer refreshes its generation before reading drafts or accepting another edit`() = runTest {
+        var generation: String? = "before"
+        val repository = DraftRepository().apply { failures = 1; textFailures = 2 }
+        val state = SavedStateHandle()
+        val writer = model(repository, state) { generation }
+        writer.setValue(20, SetField.WEIGHT, 80.0)
+        writer.rename(1, "Old name", "Old note")
+        writer.exerciseNotes(10, "Old exercise note")
+        assertFalse(writer.flush())
+        generation = "after"
+        assertTrue(writer.numericDrafts(20).value.isEmpty())
+        assertNull(writer.workoutDrafts(1).value)
+        assertNull(writer.exerciseNoteDrafts(10).value)
+        writer.setValue(20, SetField.WEIGHT, 70.0)
+        val captured = copyState(state)
+        stores.last().clear()
+        val recreated = model(repository, captured) { generation }
+        assertEquals(70.0, recreated.numericDrafts(20).value.getValue(SetField.WEIGHT), 0.0)
+        assertFalse(recreated.flush())
+        recreated.retryFailedChanges()
+        assertTrue(recreated.flush())
+        assertEquals(70.0, repository.rows.getValue(20).weight, 0.0)
+        assertEquals("Original workout", repository.workoutRow!!.name)
+    }
+
+    private fun model(repository: WorkoutRepository, state: SavedStateHandle,
+        generationProvider: () -> String? = { null }): WorkoutViewModel =
+        WorkoutViewModel(repository, { it.message.orEmpty() }, savedState = state, generationProvider = generationProvider).also {
             ViewModelStore().apply { put("workout", it); stores += this }
         }
 

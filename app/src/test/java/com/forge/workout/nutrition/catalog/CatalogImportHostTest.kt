@@ -78,11 +78,11 @@ class CatalogImportHostTest {
         val snapshot = oats.snapshot()
         val diaryId = foods.saveDiary(DiaryEntity(day = DAY, meal = MealType.BREAKFAST, foodId = "oats",
             snapshot = snapshot, quantity = 150.0, unit = FoodUnit.GRAM, factor = 1.5, loggedAt = 1000))
-        val recipeFood = FoodDetail(FoodEntity(id = "custom-recipe", name = "Oat bowl", sourceType = FoodSourceType.RECIPE,
-            baseAmount = 1.0, baseUnit = FoodUnit.SERVING, gramsPerBase = 150.0))
-        foods.saveRecipe(RecipeEntity("custom-recipe", "Oat bowl", servings = 1.0), recipeFood,
-            listOf(RecipeIngredientEntity(recipeId = "custom-recipe", orderIndex = 0, foodId = "oats", snapshot = snapshot,
-                quantity = 150.0, unit = FoodUnit.GRAM, factor = 1.5)))
+        val recipe = RecipeFactory.validate(RecipeDraft(id = "custom-recipe", name = "Oat bowl", cookedWeightGrams = "150",
+            ingredients = listOf(RecipeIngredientDraft(key = "oats", snapshot = snapshot,
+                choice = NutritionMath.choices(snapshot).single(), quantity = "150"))))
+        check(recipe.invalidFields.isEmpty())
+        foods.saveRecipe(requireNotNull(recipe.recipe), requireNotNull(recipe.food), recipe.ingredients)
         foods.saveFavorite(FavoriteEntity("oats", "Oats", 1))
         val diaryBefore = foods.diaryEntry(diaryId)
         val recipeBefore = foods.recipe("custom-recipe")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1 — 2026-11-12
+
+- Reject contradictory recipe backups before changing stored data. Validate serving conversions and nutrition against frozen ingredient totals, preserving unknown nutrients, supported legacy backups and historical diary snapshots.
+- Prevent workout edits captured before a backup restore from replaying after Android recreates a stopped Activity/process. Bind saved numeric/text drafts to a durable transactional restore generation while preserving normal autosaving, failed-save Retry and ordinary process-death recovery.
+- Reproduce the stale-draft defect twice on the Android 17/API 37 emulator through actual background restore completion and saved-task process recreation. Both corrected trials retained the restored 60 kg value in Room and the UI, with zero obsolete writes; ordinary pending-edit recovery remained functional.
+- Pass 654 unit/Robolectric tests, 51 Android instrumentation tests, 61 focused Android regressions and 21 food-importer tests, plus Android lint and debug/optimized release builds. See the [verification report](docs/reliability-1.4.1.md) for scope and remaining physical-device limitations.
+- Version code 10 for `com.forge.workout`; Room schema 4, portable backup format 3, food catalogs, update checking and existing navigation remain unchanged. The optimized downloadable APK uses the same development/test certificate as 1.4.0 for compatible sideload updates.
+
 ## 1.4.0 — 2026-11-09
 
 - Add two optional offline food packs with 631 India-market packaged foods and 13,041 USDA packaged foods from the US and New Zealand.

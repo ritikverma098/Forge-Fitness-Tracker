@@ -23,11 +23,15 @@ internal data class TextDraftAssignment(
 )
 
 /** Saves data assignments only: structural operations and executable closures never enter saved state. */
-internal class WorkoutDraftJournal(private val state: SavedStateHandle) {
+internal class WorkoutDraftJournal(private val state: SavedStateHandle, generation: String? = null) {
     private val assignments = linkedMapOf<Pair<Long, SetField>, NumericDraftAssignment>()
     private val textAssignments = linkedMapOf<Pair<TextDraftKind, Long>, TextDraftAssignment>()
+    private var restoreGeneration = generation
 
     init {
+        // Android can restore a bundle captured before a restore completed while stopped.
+        if (state.get<Any>(GENERATION_KEY) != restoreGeneration) clear()
+        state[GENERATION_KEY] = restoreGeneration
         val saved = state.get<Any>(KEY) as? List<*>
         saved.orEmpty().forEach { entry ->
             val values = entry as? List<*> ?: return@forEach
@@ -60,6 +64,7 @@ internal class WorkoutDraftJournal(private val state: SavedStateHandle) {
 
     fun pending(): List<NumericDraftAssignment> = assignments.values.sortedBy { it.revision }
     fun pendingText(): List<TextDraftAssignment> = textAssignments.values.sortedBy { it.revision }
+    fun matchesGeneration(generation: String?): Boolean = restoreGeneration == generation
 
     fun put(assignment: NumericDraftAssignment) {
         assignments[assignment.setId to assignment.field] = assignment
@@ -120,11 +125,13 @@ internal class WorkoutDraftJournal(private val state: SavedStateHandle) {
         if (textAssignments.keys.removeAll { it.first == kind && it.second in ids }) persistText()
     }
 
-    fun clear() {
+    fun clear(generation: String? = restoreGeneration) {
         assignments.clear()
         textAssignments.clear()
+        restoreGeneration = generation
         state.remove<Any>(KEY)
         state.remove<Any>(TEXT_KEY)
+        state[GENERATION_KEY] = restoreGeneration
     }
 
     private fun persistText() {
@@ -145,6 +152,7 @@ internal class WorkoutDraftJournal(private val state: SavedStateHandle) {
     internal companion object {
         const val KEY = "workout_pending_numeric_v1"
         const val TEXT_KEY = "workout_pending_text_v1"
+        const val GENERATION_KEY = "workout_restore_generation_v1"
     }
 }
 

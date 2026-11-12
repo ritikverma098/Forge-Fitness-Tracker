@@ -160,7 +160,7 @@ class NutritionDatabaseHostTest {
         val recipeBefore = repository.recipe("bowl")!!
         val foodBefore = repository.food("bowl")!!
         database.openHelper.writableDatabase.execSQL("CREATE TRIGGER reject_ingredient BEFORE INSERT ON nutrition_recipe_ingredients WHEN NEW.orderIndex = 1 BEGIN SELECT RAISE(ABORT, 'Reject test ingredient'); END")
-        expectConstraint { saveRecipe("bowl", "Replacement bowl", listOf(snapshot, snapshot), calories = 900.0) }
+        expectConstraint { saveRecipe("bowl", "Replacement bowl", listOf(snapshot, snapshot)) }
         assertEquals(recipeBefore, repository.recipe("bowl"))
         assertEquals(foodBefore, repository.food("bowl"))
         assertEquals(listOf("bowl"), repository.searchFoods("Original").map { it.id })
@@ -274,14 +274,14 @@ class NutritionDatabaseHostTest {
         foodId = snapshot.foodId, snapshot = snapshot, quantity = 150.0, unit = FoodUnit.GRAM,
         factor = 1.5, loggedAt = 1000)
 
-    private suspend fun saveRecipe(id: String, name: String, snapshots: List<FoodSnapshot>, calories: Double = 110.0) {
-        val recipeFood = food(id, name, calories).let {
-            it.copy(food = it.food.copy(sourceType = FoodSourceType.RECIPE, baseAmount = 1.0,
-                baseUnit = FoodUnit.SERVING, gramsPerBase = 200.0), portions = emptyList())
-        }
-        repository.saveRecipe(RecipeEntity(id, name, servings = 2.0, cookedWeightGrams = 400.0), recipeFood,
-            snapshots.mapIndexed { index, snapshot -> RecipeIngredientEntity(recipeId = id, orderIndex = index,
-                foodId = snapshot.foodId, snapshot = snapshot, quantity = 100.0, unit = FoodUnit.GRAM, factor = 1.0) })
+    private suspend fun saveRecipe(id: String, name: String, snapshots: List<FoodSnapshot>) {
+        val draft = RecipeDraft(id, name, servings = "2", cookedWeightGrams = "400",
+            ingredients = snapshots.mapIndexed { index, snapshot -> RecipeIngredientDraft(key = "ingredient-$index",
+                snapshot = snapshot, choice = NutritionMath.choices(snapshot).single(), quantity = "100") })
+        val metadata = food(id, name).let { it.copy(food = it.food.copy(sourceType = FoodSourceType.RECIPE)) }
+        val result = RecipeFactory.validate(draft, existingFood = metadata)
+        check(result.invalidFields.isEmpty())
+        repository.saveRecipe(requireNotNull(result.recipe), requireNotNull(result.food), result.ingredients)
     }
 
     private suspend fun completedWorkout() = database.workoutDao().insertWorkout(

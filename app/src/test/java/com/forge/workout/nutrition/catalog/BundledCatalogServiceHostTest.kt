@@ -84,7 +84,8 @@ class BundledCatalogServiceHostTest {
             factor = 2.5, loggedAt = 1234L))
         val recipeId = "custom:historical-juice-recipe"
         val recipeFood = FoodDetail(FoodEntity(id = recipeId, name = "Historical juice recipe",
-            sourceType = FoodSourceType.RECIPE, baseAmount = 1.0, baseUnit = FoodUnit.SERVING))
+            sourceType = FoodSourceType.RECIPE, baseAmount = 1.0, baseUnit = FoodUnit.SERVING),
+            listOf(FoodNutrientEntity(recipeId, "energy", "Energy", "kcal", 100.0)))
         foods.saveRecipe(RecipeEntity(recipeId, recipeFood.food.name, servings = 1.0), recipeFood,
             listOf(RecipeIngredientEntity(recipeId = recipeId, orderIndex = 0, foodId = JUICE_ID,
                 snapshot = snapshot, quantity = 250.0, unit = FoodUnit.GRAM, factor = 2.5)))

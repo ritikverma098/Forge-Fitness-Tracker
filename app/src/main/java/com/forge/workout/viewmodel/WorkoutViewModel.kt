@@ -27,6 +27,7 @@ class WorkoutViewModel(
     private val errorFormatter: (Throwable) -> String,
     private val clock: () -> Long = System::currentTimeMillis,
     savedState: SavedStateHandle,
+    private val generationProvider: () -> String? = { null },
 ) : ViewModel() {
     @androidx.annotation.VisibleForTesting
     constructor(repository: WorkoutRepository, errorFormatter: (Throwable) -> String,
@@ -57,7 +58,7 @@ class WorkoutViewModel(
     val errorNotice = _errorNotice.asStateFlow()
     private val _invalidInputs = MutableStateFlow<Map<Long, Set<String>>>(emptyMap())
     val invalidInputs = _invalidInputs.asStateFlow()
-    private val draftJournal = WorkoutDraftJournal(savedState)
+    private val draftJournal = WorkoutDraftJournal(savedState, generationProvider())
     private val numericDraftFlows = mutableMapOf<Long, MutableStateFlow<Map<SetField, Double>>>()
     private val numericDraftViews = mutableMapOf<Long, StateFlow<Map<SetField, Double>>>()
     private val workoutDraftFlows = mutableMapOf<Long, MutableStateFlow<WorkoutIdentityDraft?>>()
@@ -79,19 +80,28 @@ class WorkoutViewModel(
     }
 
     /** A row observes only its own accepted values; acknowledgements remain visible while Room catches up. */
-    fun numericDrafts(setId: Long): StateFlow<Map<SetField, Double>> = synchronized(pendingLock) {
-        val mutable = numericDraftFlows.getOrPut(setId) { MutableStateFlow(emptyMap()) }
-        numericDraftViews.getOrPut(setId) { mutable.asStateFlow() }
+    fun numericDrafts(setId: Long): StateFlow<Map<SetField, Double>> {
+        synchronizeRestoreGeneration()
+        return synchronized(pendingLock) {
+            val mutable = numericDraftFlows.getOrPut(setId) { MutableStateFlow(emptyMap()) }
+            numericDraftViews.getOrPut(setId) { mutable.asStateFlow() }
+        }
     }
 
-    fun workoutDrafts(workoutId: Long): StateFlow<WorkoutIdentityDraft?> = synchronized(pendingLock) {
-        val mutable = workoutDraftFlows.getOrPut(workoutId) { MutableStateFlow(null) }
-        workoutDraftViews.getOrPut(workoutId) { mutable.asStateFlow() }
+    fun workoutDrafts(workoutId: Long): StateFlow<WorkoutIdentityDraft?> {
+        synchronizeRestoreGeneration()
+        return synchronized(pendingLock) {
+            val mutable = workoutDraftFlows.getOrPut(workoutId) { MutableStateFlow(null) }
+            workoutDraftViews.getOrPut(workoutId) { mutable.asStateFlow() }
+        }
     }
 
-    fun exerciseNoteDrafts(exerciseId: Long): StateFlow<String?> = synchronized(pendingLock) {
-        val mutable = exerciseNoteDraftFlows.getOrPut(exerciseId) { MutableStateFlow(null) }
-        exerciseNoteDraftViews.getOrPut(exerciseId) { mutable.asStateFlow() }
+    fun exerciseNoteDrafts(exerciseId: Long): StateFlow<String?> {
+        synchronizeRestoreGeneration()
+        return synchronized(pendingLock) {
+            val mutable = exerciseNoteDraftFlows.getOrPut(exerciseId) { MutableStateFlow(null) }
+            exerciseNoteDraftViews.getOrPut(exerciseId) { mutable.asStateFlow() }
+        }
     }
 
     fun clearError() { _errorNotice.value?.let(::clearError) }
@@ -147,6 +157,7 @@ class WorkoutViewModel(
 
     private fun perform(target: Target, id: Long, operation: String, distinct: Boolean = false,
         beforeEnqueue: ((Long) -> Unit)? = null, action: suspend (Boolean) -> Unit) {
+        synchronizeRestoreGeneration()
         val mutation = synchronized(pendingLock) {
             val request = ++nextRequest
             val key = MutationKey(target, id, operation, request.takeIf { distinct })
@@ -179,10 +190,13 @@ class WorkoutViewModel(
     }
 
     /** Reattempts only unresolved requests; successful additions and relative edits are never replayed. */
-    fun retryFailedChanges() = enqueue {
-        failedMutations.values.sortedBy { it.id }.forEach { mutation ->
-            val latest = synchronized(pendingLock) { latestRequests[mutation.key] }
-            if (failedMutations[mutation.key] === mutation && latest == mutation.id) attempt(mutation, retrying = true)
+    fun retryFailedChanges() {
+        synchronizeRestoreGeneration()
+        enqueue {
+            failedMutations.values.sortedBy { it.id }.forEach { mutation ->
+                val latest = synchronized(pendingLock) { latestRequests[mutation.key] }
+                if (failedMutations[mutation.key] === mutation && latest == mutation.id) attempt(mutation, retrying = true)
+            }
         }
     }
 
@@ -414,9 +428,14 @@ class WorkoutViewModel(
             }
         }
 
-    fun resetAfterRestore() {
+    private fun synchronizeRestoreGeneration() {
+        val current = generationProvider()
+        if (!draftJournal.matchesGeneration(current)) resetAfterRestore(current)
+    }
+
+    fun resetAfterRestore(restoredGeneration: String? = generationProvider()) {
         synchronized(pendingLock) { generation++; latestRequests.clear(); timerIntents.clear(); timerSessions.clear() }
-        draftJournal.clear()
+        draftJournal.clear(restoredGeneration)
         forgetNumericDrafts(numericDraftFlows.keys.toSet())
         forgetTextDrafts(TextDraftKind.WORKOUT, workoutDraftFlows.keys.toSet())
         forgetTextDrafts(TextDraftKind.EXERCISE, exerciseNoteDraftFlows.keys.toSet())
@@ -467,6 +486,7 @@ class WorkoutViewModel(
 
     /** Waits for queued mutations and reports failures before a finish, discard, or return. */
     suspend fun flush(): Boolean {
+        synchronizeRestoreGeneration()
         while (true) {
             val waiting = synchronized(pendingLock) { pendingJobs.toList() }
             if (waiting.isEmpty()) break

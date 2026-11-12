@@ -118,7 +118,8 @@ class RoomBackupRepositoryTest {
                 callbackRan = true
                 assertEquals(replacement.workouts, database.workoutDao().backupWorkouts())
                 assertEquals(replacement.sets, database.workoutDao().backupSets())
-                assertEquals(replacement.metadata.sortedBy { it.key }, database.workoutDao().backupMetadata())
+                assertEquals(replacement.metadata.sortedBy { it.key }, database.workoutDao().backupMetadata()
+                    .filterNot { RestorePreferencesJournal.isInternal(it.key) })
                 throw IOException("Preference write failed")
             }
             fail("Expected callback failure")

@@ -10,8 +10,8 @@ android {
         applicationId = "com.forge.workout"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.4.0"
+        versionCode = 10
+        versionName = "1.4.1"
         testInstrumentationRunner = "com.forge.workout.ForgeTestRunner"
     }
     buildTypes {

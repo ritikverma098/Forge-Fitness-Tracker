@@ -130,6 +130,28 @@ internal object NutritionValidation {
             require(it.foodId == null || it.snapshot.foodId == null || it.foodId == it.snapshot.foodId) { "Ingredient food identity must match its snapshot." }
             amount(it.snapshot, it.quantity, it.unit, it.factor, it.portionId, it.portionLabel)
         }
+        require(food.food.baseUnit == FoodUnit.SERVING && food.food.baseAmount == 1.0 &&
+            food.food.millilitersPerBase == null) { "Recipe nutrition must use one serving as its base." }
+        derivedValue(food.food.gramsPerBase, recipe.cookedWeightGrams?.div(recipe.servings))
+        val expected = RecipeMath.perServing(RecipeMath.totals(ingredients), recipe.servings).associateBy { it.code }
+        val stored = food.nutrients.associateBy { it.code }
+        for (code in expected.keys + stored.keys) {
+            val calculated = expected[code]
+            val nutrient = stored[code]
+            if (calculated != null && nutrient != null) {
+                require(RecipeMath.normalizeUnit(nutrient.unit) == RecipeMath.normalizeUnit(calculated.unit)) {
+                    "Recipe nutrient units must match the frozen ingredients."
+                }
+            }
+            // Older backups can omit unreported nutrients. A missing measurement stays unknown.
+            derivedValue(nutrient?.value, calculated?.value)
+        }
+    }
+    private fun derivedValue(stored: Double?, expected: Double?) {
+        require(if (expected == null) stored == null else stored != null && expected.isFinite() &&
+            abs(stored - expected) <= maxOf(1.0, abs(expected)) * 1e-9) {
+            "Recipe nutrition and conversions must match the frozen ingredients and servings."
+        }
     }
     fun goal(value: NutritionGoalEntity) {
         day(value.effectiveDay)

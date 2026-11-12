@@ -9,6 +9,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 class RoomBackupRepository(
     private val database: ForgeDatabase,
@@ -112,6 +113,7 @@ class RoomBackupRepository(
                         nutritionDao.insertBackupSettings(nutrition.settings)
                         nutritionDao.insertBackupWorkoutEnergy(nutrition.workoutEnergy)
                     }
+                    dao.putMetadata(AppMetadata(WORKOUT_GENERATION_KEY, UUID.randomUUID().toString()))
                     if (preferencesRestorer != null) withContext(NonCancellable) { preferencesRestorer.invoke(stable.preferences) }
                     beforeCommit()
                 }
@@ -126,6 +128,8 @@ class RoomBackupRepository(
     }
 
     override suspend fun recoverInterruptedRestore() = operations.withLock { recoverPreferences() }
+
+    override suspend fun workoutDraftGeneration(): String? = operations.withLock { dao.metadata(WORKOUT_GENERATION_KEY) }
 
     private suspend fun recoverPreferences() {
         val journal = dao.metadata(RestorePreferencesJournal.KEY) ?: return
@@ -146,5 +150,9 @@ class RoomBackupRepository(
             connection.execSQL("DELETE FROM sqlite_sequence WHERE name = ?", arrayOf(table))
             connection.execSQL("INSERT INTO sqlite_sequence(name, seq) SELECT ?, COALESCE(MAX(rowid), 0) FROM `$table`", arrayOf(table))
         }
+    }
+
+    private companion object {
+        const val WORKOUT_GENERATION_KEY = "forge_internal_restore_workout_generation_v1"
     }
 }

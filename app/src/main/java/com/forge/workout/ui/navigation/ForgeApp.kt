@@ -99,7 +99,8 @@ internal val destinations = listOf(
         onPauseOrDispose { }
     }
     val workoutViewModel: WorkoutViewModel = viewModel(factory = viewModelFactory { initializer {
-        WorkoutViewModel(application.repository, formatError, savedState = createSavedStateHandle())
+        WorkoutViewModel(application.repository, formatError, savedState = createSavedStateHandle(),
+            generationProvider = { application.workoutDraftGeneration })
     } })
     val libraryViewModel: LibraryViewModel = viewModel(factory = viewModelFactory { initializer { LibraryViewModel(application.repository, formatError) } })
     val routineViewModel: RoutineViewModel = viewModel(factory = viewModelFactory { initializer { RoutineViewModel(application.repository, formatError) } })
@@ -133,7 +134,7 @@ internal val destinations = listOf(
                     true
                 }
             }, onRestored = {
-                workoutViewModel.resetAfterRestore()
+                workoutViewModel.resetAfterRestore(application.workoutDraftGeneration)
                 libraryViewModel.clearError()
                 routineViewModel.clearError()
                 historyViewModel.clearFilters()

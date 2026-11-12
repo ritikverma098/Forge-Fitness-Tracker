@@ -45,9 +45,12 @@ open class ForgeApplication : Application() {
     private val restScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val nutritionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var restorePaused = false
+    @Volatile internal var workoutDraftGeneration: String? = null
+        private set
     private val startup by lazy {
         RestoreStartupGate(nutritionScope, {
             backups.recoverInterruptedRestore()
+            workoutDraftGeneration = backups.workoutDraftGeneration()
             if (restorePaused) {
                 try { restTimers.resumeAfterRestore() }
                 finally { workoutEnergy.resumeAfterRestore() }
