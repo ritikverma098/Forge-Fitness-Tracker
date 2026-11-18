@@ -1,0 +1,27 @@
+name: Feedback or an idea
+description: Suggest an improvement or tell us about your first session.
+title: "[Feedback]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feedback is welcome. This is a public issue, so describe your use case without personal workout/food records, backup files or private information. Check existing issues first if you can.
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do?
+      description: Explain the situation and what gets in your way.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Your suggestion or first-use feedback
+      description: What would make this easier? What already worked well?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Forge and Android versions (optional)
+      placeholder: "For example, Forge 1.4.2 · Android 16"

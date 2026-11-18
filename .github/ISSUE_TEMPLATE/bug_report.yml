@@ -1,0 +1,48 @@
+name: Report a bug
+description: Something in Forge did not work as expected.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying Forge. This issue will be public. Do not attach personal backups, diary exports, signing files, passwords or device serial numbers. Redact screenshots and logs before sharing them.
+        If the problem involves replacing a development-signed app with 1.4.2, read the [signing migration guide](https://github.com/ritikverma098/Forge-Fitness-Tracker/blob/main/docs/signing.md) before uninstalling anything.
+  - type: input
+    id: version
+    attributes:
+      label: Forge version
+      description: Find this in Settings → About Forge.
+      placeholder: "For example, 1.4.2"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Android version and device model
+      description: Model and Android version only; no serial numbers or account information.
+      placeholder: "For example, Pixel 7 · Android 16"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Tell us the shortest sequence that shows the problem.
+      placeholder: |
+        1. Open…
+        2. Tap…
+        3. Observe…
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual behavior
+      placeholder: "I expected… Instead, Forge…"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context (optional)
+      description: A redacted screenshot or error message can help. Keep personal records, backups and signing material private.

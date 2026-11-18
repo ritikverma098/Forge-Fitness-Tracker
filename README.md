@@ -1,24 +1,60 @@
-# Forge 1.4.2
+# Forge — Workout & Nutrition Tracker
 
-[Third-party notices and bundled data licenses](THIRD_PARTY_NOTICES.md). No overall license for the original project code has been selected.
+**Track your workouts and nutrition. Keep your data on your phone.**
 
-A native workout and nutrition tracker for Android 8.0 and newer, built with Kotlin, Jetpack Compose and Material 3. Log training, plan routines, review progress and keep a food diary on your device. Forge uses an original interface with neutral surfaces, a lime accent and light/dark/system themes.
+Forge is a native **Android 8.0+** app for logging gym sessions, planning routines, reviewing progress and keeping a food diary. No account is required. Training, nutrition and the bundled food library work offline, with light, dark and system themes.
 
-Training and nutrition work offline, including the bundled food catalog. There are no ads, accounts, analytics or cloud sync. Forge uses the internet to check public GitHub release metadata and, when requested, download app updates or optional food catalogs.
+- **Log training quickly:** sets, reps, weight, previous performance and rest timers.
+- **Build a repeatable routine:** custom exercises, saved routines, history and progress charts.
+- **Track meals:** calories, macros, recipes, custom foods and an offline food library, with optional Indian and international food packs.
+- **Stay in control:** no ads, analytics or cloud sync; portable local backup and restore.
 
-[Features](#features) · [Changelog](CHANGELOG.md) · [Signing and migration](docs/signing.md) · [Build and install](#build-and-install) · [Backup and restore](#backup-and-restore) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
+### [Download Forge 1.4.2 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.2/Forge-1.4.2.apk)
 
-## Download
+Android 8.0 or newer · Version 1.4.2 (code 11) · [Release notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.2) · [APK checksums](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.2/SHA256SUMS.txt)
+
+[Screenshots](#screenshots) · [Getting started](#getting-started) · [Features](#features) · [Feedback](#feedback-and-bug-reports) · [Build from source](#build-and-install) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
+
+## Install on Android
 
 **Signing transition for 1.4.2:** the production release uses a new release certificate. Existing development-signed installations, including published 1.4.1, require a one-time **verified local backup → uninstall → production install → restore**. Do not uninstall until the backup is saved outside Forge and checked. Android 8 cannot use signing lineage for this transition; this APK does not retain the debug signer. Read the [migration instructions](docs/signing.md) before installing.
 
-[Download Forge 1.4.2 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.2/Forge-1.4.2.apk) · [Latest release and notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest)
+1. Download **Forge-1.4.2.apk** from the official link above on your Android phone. The release also provides `SHA256SUMS.txt` to check the file.
+2. Open the downloaded APK. If Android asks, allow installation from the browser or file manager you used, then approve **Install** in Android's installer.
+3. Open Forge and start logging. Future compatible production-signed updates can be downloaded inside Forge through **Settings → About Forge → Check for Updates**; Android still asks you to approve installation.
 
-**Forge 1.4.2 uses version code 11.** Read the [production release verification](docs/release-1.4.2.md) and migration instructions before replacing an older development-signed installation.
+Only install APKs from the official repository's releases. The [signing guide](docs/signing.md) explains file checksums and certificate fingerprints; the [release verification report](docs/release-1.4.2.md) records the checks performed for this APK.
 
-Forge 1.4.2 preserves the recipe-backup validation and workout-draft recovery corrections from 1.4.1, together with the offline food packs and improved search from 1.4.0. See the [changelog](CHANGELOG.md) and [reliability verification](docs/reliability-1.4.1.md).
+## Screenshots
 
-The **previously published 1.4.1 APK** uses the legacy development/test certificate. The **1.4.2 production release** uses a dedicated release identity, separate from standard Android debug signing. It cannot replace a legacy development-signed installation directly. Release builds require private production signing inputs; CI can request an explicit optimized unsigned verification build. No signing credentials belong in this repository.
+Actual Forge screens captured from version 1.3.0 on an Android 17 emulator with synthetic QA data. Version 1.4.2 retains these training and nutrition layouts; these are not new 1.4.2 captures.
+
+| Home | Active workout | Nutrition |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.png" alt="Forge Home dashboard with workout shortcuts" width="220"> | <img src="docs/screenshots/workout.png" alt="Active workout with weight, reps and Done controls" width="220"> | <img src="docs/screenshots/nutrition.png" alt="Nutrition dashboard showing calories and macros" width="220"> |
+| Routines | History | Progress |
+| <img src="docs/screenshots/routines.png" alt="Reusable workout routines" width="220"> | <img src="docs/screenshots/history.png" alt="Completed workout history" width="220"> | <img src="docs/screenshots/progress.png" alt="Exercise progress and training metrics" width="220"> |
+
+## Getting started
+
+1. **Log your first workout.** Choose **Start Workout**, add exercises, enter your sets and tick **Done** for each completed set. Finish the workout to review its summary.
+2. **Make it repeatable.** Open **Your routines** from Home to save a plan. Use **History** for past sessions and **Progress** to review an exercise over time.
+3. **Log a meal.** Open **Nutrition**, let the bundled food library finish its first local setup, then add a food and choose its portion. You can also create custom foods and recipes. Optional packs are available under **Nutrition → Food catalog**.
+4. **Keep a backup.** Use **Settings → Backup & restore → Create backup** and save the file outside Forge. Keep a checked backup before reinstalling or changing phones; automatic Android cloud backup and device transfer are disabled.
+
+## Privacy and offline use
+
+Workouts, diary entries and settings are stored locally. Forge has no accounts, ads, analytics or cloud sync. It uses the internet for public GitHub update checks and, when you request them, app-update or optional food-pack downloads. Installed food packs remain searchable offline.
+
+You control exported backup files. They contain personal records, so keep them private. See [backup and restore](#backup-and-restore) for what is included and how restoration works.
+
+## Feedback and bug reports
+
+Have a question, suggestion or reproducible problem? [Open a GitHub issue](https://github.com/ritikverma098/Forge-Fitness-Tracker/issues/new/choose), or [check existing reports](https://github.com/ritikverma098/Forge-Fitness-Tracker/issues) first. For a bug, include your Forge version, Android version/device, steps to reproduce, and expected versus actual behavior. Screenshots can help; remove personal details and never attach personal backups, signing files or credentials.
+
+## Source and data licensing
+
+The source is publicly available, but **no overall license for the original project code has been selected**. Public availability alone does not grant general permission to reuse or redistribute it. Bundled and optional food datasets have separate terms: [third-party notices and data licenses](THIRD_PARTY_NOTICES.md).
 
 ## In-app update checks
 
@@ -41,16 +77,6 @@ To prepare the next compatible release:
 3. Publish only after verification and approval, using the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm the public API returns that tag, uploaded APK URL, exact asset size and a `sha256:` digest matching the APK. The built-in downloader fails closed if that API digest is missing. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 
 Keep the production keystore and passwords in private, durable storage, with verified independent secure backups. Losing this identity may prevent future compatible updates; changing it requires a separately verified migration. The owner confirmed secure backups for the new identity before publication preparation. [Public fingerprints and migration policy](docs/signing.md) · [Android signing guide](https://developer.android.com/studio/publish/app-signing)
-
-## Screenshots
-
-Captured from Forge 1.3.0 on an Android 17 emulator using synthetic QA data. Forge 1.4.2 retains these training and nutrition layouts.
-
-| Home | Active workout | Nutrition |
-| --- | --- | --- |
-| <img src="docs/screenshots/home.png" alt="Forge Home dashboard" width="220"> | <img src="docs/screenshots/workout.png" alt="Active workout and set logging" width="220"> | <img src="docs/screenshots/nutrition.png" alt="Nutrition dashboard and food diary" width="220"> |
-| Routines | History | Progress |
-| <img src="docs/screenshots/routines.png" alt="Reusable workout routines" width="220"> | <img src="docs/screenshots/history.png" alt="Completed workout history" width="220"> | <img src="docs/screenshots/progress.png" alt="Exercise progress and training metrics" width="220"> |
 
 ## Development status
 

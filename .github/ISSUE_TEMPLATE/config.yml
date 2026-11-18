@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and signing migration
+    url: https://github.com/ritikverma098/Forge-Fitness-Tracker/blob/main/docs/signing.md
+    about: Read before replacing a development-signed installation with Forge 1.4.2.
+  - name: Releases, APK and checksums
+    url: https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest
+    about: Get official release downloads and installation notes.
