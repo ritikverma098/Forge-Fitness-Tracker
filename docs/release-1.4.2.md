@@ -44,6 +44,8 @@ The strict signature-mismatch message was established with a failing regression 
 
 ## Failed attempts and remaining limits
 
+The first hosted CI run stopped before tests because the runner did not expose `sdkmanager`. The workflow was corrected to install Android command-line tools and the required SDK packages explicitly through a pinned setup action. A successful full hosted run of the corrected release commit remains mandatory before publication.
+
 The initial API 37 functional run had three failures behind an Android System UI ANR dialog. After dismissing only that system dialog, those three passed and a clean complete 54-test run passed. No app correction was needed.
 
 On API 26, repeated `uiautomator dump` accessibility reconnections during restore-dialog teardown triggered an Android framework `ViewRootImpl` null-view callback in the published 1.4.1 baseline. The work-only driver switched to a non-accessibility window/focus checkpoint; database and actual portable export comparisons established the result independently. No production behavior was changed to mask the platform automation failure.

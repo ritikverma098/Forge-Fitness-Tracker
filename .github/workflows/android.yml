@@ -50,15 +50,12 @@ jobs:
           dependency-graph: disabled
           validate-wrappers: true
 
-      - name: Install required Android SDK packages
-        run: |
-          # yes exits on a closed pipe; only sdkmanager's status controls this check.
-          set +e
-          yes | sdkmanager --licenses > /dev/null
-          license_status=${PIPESTATUS[1]}
-          set -e
-          test "$license_status" -eq 0
-          sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Set up Android SDK and required packages
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          cmdline-tools-version: '15859902'
+          log-accepted-android-sdk-licenses: false
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
 
       - name: Fetch pinned catalog test fixtures
         run: |
