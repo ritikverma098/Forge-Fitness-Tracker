@@ -84,5 +84,17 @@ jobs:
       - name: Test, lint and build
         run: |
           chmod +x gradlew
+          python -u .github/ci/test-thread-diagnostics.py &
+          diagnostic_pid=$!
+          stop_diagnostics() {
+            result=$?
+            trap - EXIT
+            if kill "$diagnostic_pid" 2>/dev/null; then
+              wait "$diagnostic_pid" 2>/dev/null || :
+            fi
+            exit "$result"
+          }
+          trap stop_diagnostics EXIT
           ./gradlew --no-daemon --console=plain --max-workers=2 --continue -Pforge.allowUnsignedRelease=true \
+            -I .github/ci/test-progress.init.gradle \
             :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease

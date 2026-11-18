@@ -28,7 +28,7 @@ This new-key-only APK has no signing lineage. API 26 cannot consume proof-of-rot
 | Food importer | 21 passed; pinned real pack/report fixture hashes verified |
 | Android instrumentation | Clean API 37 complete suite: 54 passed, 0 failed/ignored; 374.710 seconds |
 | Lint/builds | Zero lint issues. Debug, optimized unsigned CI-equivalent release and private production-signed optimized build passed. Full host check 6m 2s; production build 2m 19s |
-| Source/security inventory | 339 source/support files, 45 changed; complete Git object/history plus staged-source checks found no unresolved secrets, signing files, personal backups/databases or unwanted binaries. Licensed bundled data/notices unchanged |
+| Source/security inventory | 341 source/support files, 47 changed; complete Git object/history plus staged-source checks found no unresolved secrets, signing files, personal backups/databases or unwanted binaries. Licensed bundled data/notices unchanged |
 | CI | Local actionlint and CI-equivalent job passed; exact publication commit must pass [GitHub Actions](https://github.com/ritikverma098/Forge-Fitness-Tracker/actions/workflows/android.yml) before tag/release publication |
 | Final artifact gate | Rebuild from committed release source; verify one production signer/v2/v3, package/version, 16 KiB alignment and independent full-file checksum. Compare all ZIP payloads with the native-tested candidate; only Git revision metadata may differ. Final evidence is in release notes/`SHA256SUMS.txt` |
 
@@ -45,6 +45,8 @@ The strict signature-mismatch message was established with a failing regression 
 ## Failed attempts and remaining limits
 
 The first hosted CI run stopped before tests because the runner did not expose `sdkmanager`. The workflow was corrected to install Android command-line tools and the required SDK packages explicitly through a pinned setup action. A successful full hosted run of the corrected release commit remains mandatory before publication.
+
+A subsequent hosted run was cancelled after more than 20 minutes inside unit tests without progress output. CI-only per-test progress and periodic worker thread snapshots were added to establish the waiting point before changing any application behavior. The local 739 cases totalled about 167 seconds. The exact final hosted outcome is recorded in the release notes; an incomplete/cancelled run is not a pass.
 
 The initial API 37 functional run had three failures behind an Android System UI ANR dialog. After dismissing only that system dialog, those three passed and a clean complete 54-test run passed. No app correction was needed.
 
