@@ -4,9 +4,12 @@ import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -22,6 +25,7 @@ import com.forge.workout.R
 import com.forge.workout.backup.BackupCodec
 import com.forge.workout.updates.AvailableUpdate
 import com.forge.workout.updates.UpdateCheckResult
+import com.forge.workout.updates.UpdatePhase
 import com.forge.workout.viewmodel.BackupViewModel
 import com.forge.workout.viewmodel.UpdateViewModel
 import java.io.File
@@ -30,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -52,6 +58,8 @@ class ForgeUpdatesTest {
         runBlocking {
             ownedWorkout?.let { app.repository.deleteWorkout(it) }
             app.preferences.recordUpdateCheck(previousCheckAt ?: 0L)
+            withTimeout(10_000) { while (!app.apkUpdates.discard()) yield() }
+            withTimeout(10_000) { app.apkUpdates.state.first { it.phase == UpdatePhase.CANCELLED && it.version == null } }
         }
         document?.delete()
     }
@@ -125,6 +133,20 @@ class ForgeUpdatesTest {
         node(R.string.backup_restore_cancel).performClick()
         awaitText(text(R.string.update_available))
         node(R.string.update_later).performClick()
+    }
+
+    @Test fun settingsDownloadFailureAppearsWithoutScrollingOrOpeningBrowser() {
+        val calls = AtomicInteger()
+        launch { if (calls.incrementAndGet() == 1) UpdateCheckResult.UpToDate else UpdateCheckResult.Available(release) }
+        compose.waitUntil(10_000) { calls.get() == 1 && !model<UpdateViewModel>().state.value.checking }
+        checkFromSettings()
+        awaitText(text(R.string.update_available))
+        compose.onNode(hasText(text(R.string.update_download)) and hasAnyAncestor(isDialog())).performClick()
+        awaitText(text(R.string.update_transfer_title))
+        node(R.string.update_transfer_title).assertIsDisplayed()
+        compose.onAllNodesWithText(text(R.string.update_transfer_failed)).onLast().assertIsDisplayed()
+        assertEquals(UpdatePhase.FAILED, app.apkUpdates.state.value.phase)
+        assertEquals(androidx.lifecycle.Lifecycle.State.RESUMED, scenario.state)
     }
 
     private fun launch(source: suspend () -> UpdateCheckResult) {

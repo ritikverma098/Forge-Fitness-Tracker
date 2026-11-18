@@ -6,7 +6,7 @@
     <string name="update_release_date">Published: %1$s</string>
     <string name="update_whats_new">What’s New</string>
     <string name="update_no_notes">No release notes were provided.</string>
-    <string name="update_download">Download Now</string>
+    <string name="update_download">Download &amp; Install</string>
     <string name="update_later">Later</string>
     <string name="update_skip">Skip This Version</string>
     <string name="update_open_link_failed">Couldn’t open the link. Check that a browser is available.</string>

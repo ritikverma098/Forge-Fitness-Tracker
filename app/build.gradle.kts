@@ -1,8 +1,98 @@
+import java.io.File
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+class ForgeProductionSigningSettings(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+fun signingCertificateFingerprint(file: File, storeType: String, password: String, alias: String): String {
+    val keyStore = KeyStore.getInstance(storeType)
+    val characters = password.toCharArray()
+    try {
+        file.inputStream().use { keyStore.load(it, characters) }
+    } finally {
+        characters.fill('\u0000')
+    }
+    check(keyStore.isKeyEntry(alias)) { "A signing private-key entry is required." }
+    val certificate = requireNotNull(keyStore.getCertificate(alias)) { "A signing certificate is required." }
+    return MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") { "%02x".format(it) }
+}
+
+val allowUnsignedRelease = providers.gradleProperty("forge.allowUnsignedRelease").orNull.let { value ->
+    require(value == null || value == "true" || value == "false") {
+        "forge.allowUnsignedRelease must be true or false."
+    }
+    value == "true"
+}
+val signingPropertiesPath = providers.environmentVariable("FORGE_RELEASE_SIGNING_PROPERTIES").orNull
+val signingEnvironment = mapOf(
+    "storeFile" to "FORGE_RELEASE_STORE_FILE",
+    "storePassword" to "FORGE_RELEASE_STORE_PASSWORD",
+    "keyAlias" to "FORGE_RELEASE_KEY_ALIAS",
+    "keyPassword" to "FORGE_RELEASE_KEY_PASSWORD",
+).mapValues { (_, name) -> providers.environmentVariable(name).orNull }
+var releaseSigningProblem: String? = null
+val productionSigning = run {
+    fun invalid(message: String): ForgeProductionSigningSettings? {
+        releaseSigningProblem = message
+        return null
+    }
+    val propertiesPath = signingPropertiesPath
+    val hasEnvironment = signingEnvironment.values.any { it != null }
+    if (propertiesPath == null && !hasEnvironment) return@run null
+    if (allowUnsignedRelease) return@run invalid(
+        "Unsigned release verification must run without production signing inputs.",
+    )
+    if (propertiesPath != null && hasEnvironment) return@run invalid(
+        "Use either FORGE_RELEASE_SIGNING_PROPERTIES or the four signing environment variables, not both.",
+    )
+    try {
+        val repository = rootProject.projectDir.canonicalFile.toPath()
+        val base: File
+        val values: Map<String, String?>
+        if (propertiesPath != null) {
+            if (propertiesPath.isBlank()) return@run invalid("The external signing properties path is empty.")
+            val propertiesFile = rootProject.file(propertiesPath).canonicalFile
+            if (propertiesFile.toPath().startsWith(repository)) return@run invalid(
+                "Production signing properties must be stored outside the repository.",
+            )
+            if (!propertiesFile.isFile) return@run invalid("The external signing properties file is unavailable.")
+            val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+            values = signingEnvironment.keys.associateWith(properties::getProperty)
+            base = propertiesFile.parentFile
+        } else {
+            values = signingEnvironment
+            base = rootProject.projectDir
+        }
+        if (values.values.any { it.isNullOrBlank() }) return@run invalid(
+            "Production signing requires storeFile, storePassword, keyAlias and keyPassword. Partial settings are rejected.",
+        )
+        val suppliedStore = File(values.getValue("storeFile")!!.trim())
+        val store = (if (suppliedStore.isAbsolute) suppliedStore else File(base, suppliedStore.path)).canonicalFile
+        if (store.toPath().startsWith(repository)) return@run invalid(
+            "The production keystore must be stored outside the repository.",
+        )
+        if (!store.isFile || store.length() == 0L) return@run invalid("The production keystore is unavailable.")
+        ForgeProductionSigningSettings(
+            store, values.getValue("storePassword")!!,
+            values.getValue("keyAlias")!!.trim(), values.getValue("keyPassword")!!,
+        )
+    } catch (_: Exception) {
+        invalid("Unable to load private production signing settings. Check the external file and paths.")
+    }
+}
+
 android {
     namespace = "com.forge.workout"
     compileSdk = 37
@@ -10,12 +100,51 @@ android {
         applicationId = "com.forge.workout"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.4.1"
+        versionCode = 11
+        versionName = "1.4.2"
         testInstrumentationRunner = "com.forge.workout.ForgeTestRunner"
+    }
+    val validProductionSigning = productionSigning?.takeIf { signing ->
+        if (signing.keyAlias.equals("androiddebugkey", ignoreCase = true)) {
+            releaseSigningProblem = "The Android debug alias cannot sign production releases."
+            false
+        } else try {
+            val productionFingerprint = signingCertificateFingerprint(
+                signing.storeFile, "PKCS12", signing.storePassword, signing.keyAlias,
+            )
+            val debug = signingConfigs.getByName("debug")
+            val debugFingerprint = debug.storeFile?.takeIf(File::isFile)?.let { file ->
+                signingCertificateFingerprint(
+                    file, debug.storeType ?: KeyStore.getDefaultType(),
+                    requireNotNull(debug.storePassword), requireNotNull(debug.keyAlias),
+                )
+            }
+            val legacyDevelopmentFingerprint = "ebf2faa1b45b6a6eea4742e7c31f8144415f5748067af1b9e4159a988ce32adc"
+            if (productionFingerprint == legacyDevelopmentFingerprint || productionFingerprint == debugFingerprint) {
+                releaseSigningProblem = "A development/debug signing identity cannot sign production releases."
+                false
+            } else true
+        } catch (_: Exception) {
+            releaseSigningProblem = "Unable to verify the private production signing identity. Check the external settings."
+            false
+        }
+    }
+    validProductionSigning?.let { signing ->
+        signingConfigs.create("productionRelease") {
+            storeFile = signing.storeFile
+            storePassword = signing.storePassword
+            keyAlias = signing.keyAlias
+            keyPassword = signing.keyPassword
+            storeType = "PKCS12"
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = false
+        }
     }
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("productionRelease")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -35,6 +164,25 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 }
+
+val verifyForgeReleaseSigning = tasks.register("verifyForgeReleaseSigning") {
+    group = "verification"
+    description = "Requires private production signing, or an explicit unsigned verification build."
+    doLast {
+        releaseSigningProblem?.let { throw GradleException(it) }
+        if (productionSigning == null && !allowUnsignedRelease) {
+            throw GradleException(
+                "Production release signing is not configured. Supply FORGE_RELEASE_SIGNING_PROPERTIES " +
+                    "or all four FORGE_RELEASE_* signing variables. CI may explicitly use " +
+                    "-Pforge.allowUnsignedRelease=true for an unsigned verification build.",
+            )
+        }
+    }
+}
+tasks.configureEach {
+    if (name.contains("Release") && name != "verifyForgeReleaseSigning") dependsOn(verifyForgeReleaseSigning)
+}
+
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 dependencies {

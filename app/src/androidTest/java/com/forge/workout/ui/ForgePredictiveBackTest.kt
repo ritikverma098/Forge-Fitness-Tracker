@@ -11,8 +11,10 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -90,6 +92,10 @@ class ForgePredictiveBackTest {
         openTab(R.string.history)
         waitForText(text(R.string.history_subtitle))
         openTab(R.string.nutrition)
+        compose.waitUntil(45_000) {
+            compose.onAllNodesWithTag("nutrition_workout_energy").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("nutrition_list").performScrollToNode(hasText(text(R.string.nutrition_empty)))
         waitForText(text(R.string.nutrition_empty))
         compose.onNode(hasText(text(R.string.nutrition), substring = false) and hasClickAction()).assertIsSelected()
         assertTrainingDataUnchanged()

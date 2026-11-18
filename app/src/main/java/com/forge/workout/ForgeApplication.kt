@@ -22,6 +22,13 @@ import android.util.Log
 import com.forge.workout.rest.AndroidRestAlerts
 import com.forge.workout.rest.RestTimerCoordinator
 import com.forge.workout.updates.GitHubReleaseSource
+import com.forge.workout.updates.ApkDownloader
+import com.forge.workout.updates.ApkUpdateCoordinator
+import com.forge.workout.updates.AndroidApkInspector
+import com.forge.workout.updates.AndroidUpdateInstaller
+import com.forge.workout.updates.SecureApkDownloader
+import com.forge.workout.updates.UpdateFiles
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +40,13 @@ open class ForgeApplication : Application() {
     open val catalogs: FoodCatalogService by lazy { AndroidFoodCatalogService(this, database) }
     open val preferences: PreferencesRepository by lazy { PreferencesRepository(this) }
     private val githubReleases by lazy { GitHubReleaseSource() }
+    private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    protected open val updateFilesDirectory: File get() = File(noBackupFilesDir, "updates")
+    internal open fun createApkDownloader(): ApkDownloader = SecureApkDownloader()
+    internal open val apkUpdates: ApkUpdateCoordinator by lazy {
+        ApkUpdateCoordinator(UpdateFiles(updateFilesDirectory), createApkDownloader(), AndroidApkInspector(this),
+            AndroidUpdateInstaller(this), updateScope)
+    }
     internal open suspend fun checkLatestRelease() = githubReleases.check(BuildConfig.VERSION_NAME)
     internal open fun canCheckLatestRelease(): Boolean {
         val manager = getSystemService(ConnectivityManager::class.java)
@@ -87,5 +101,6 @@ open class ForgeApplication : Application() {
         super.onCreate()
         AndroidRestAlerts(this).createChannel()
         startup.start()
+        apkUpdates.start()
     }
 }

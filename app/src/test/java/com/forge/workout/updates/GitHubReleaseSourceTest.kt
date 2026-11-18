@@ -18,6 +18,37 @@ import java.time.LocalDate
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class GitHubReleaseSourceTest {
+    @Test fun retainsOnlySelectedAssetsTrustedSizeAndDigest() {
+        val digest = "a1".repeat(32)
+        val selected = asset("v1.4.0", "Forge-1.4.0.apk").put("digest", "sha256:${digest.uppercase()}")
+        val json = release().put("assets", JSONArray().put(selected))
+        val result = (check(json) as UpdateCheckResult.Available).release
+        assertEquals(123L, result.apkSize)
+        assertEquals(digest, result.apkSha256)
+        GitHubAssetPolicy.validate(result)
+    }
+
+    @Test fun missingOrMalformedDigestCannotAuthorizeDownload() {
+        for (digest in listOf(null, "", "md5:" + "0".repeat(32), "sha256:" + "0".repeat(63))) {
+            val selected = asset("v1.4.0", "Forge-1.4.0.apk").put("digest", digest)
+            val result = (check(release().put("assets", JSONArray().put(selected))) as UpdateCheckResult.Available).release
+            assertNull(result.apkSha256)
+            assertEquals(UpdateFailure.MISSING_CHECKSUM,
+                assertThrows(UpdateException::class.java) { GitHubAssetPolicy.validate(result) }.issue)
+        }
+    }
+
+    @Test fun rejectsFractionalAssetSizesAndDownloadPolicyRejectsUntrustedOrOversizedOffers() {
+        val badSize = asset("v1.4.0", "Forge-1.4.0.apk").put("size", 123.5)
+        assertEquals(UpdateCheckResult.NoValidRelease, check(release().put("assets", JSONArray().put(badSize))))
+        val valid = (check(release()) as UpdateCheckResult.Available).release.copy(apkSha256 = "0".repeat(64))
+        for (offer in listOf(valid.copy(apkUrl = "https://example.com/Forge.apk"),
+            valid.copy(apkSize = GitHubAssetPolicy.MAX_APK_BYTES + 1), valid.copy(tag = "v9.0.0"))) {
+            assertEquals(UpdateFailure.INVALID_RELEASE,
+                assertThrows(UpdateException::class.java) { GitHubAssetPolicy.validate(offer) }.issue)
+        }
+    }
+
     @Test fun equalVersionIsCurrentEvenWithPrefixOrBuildMetadata() {
         assertEquals(UpdateCheckResult.UpToDate, check(release("v1.3.2"), installed = "V1.3.2+local"))
     }

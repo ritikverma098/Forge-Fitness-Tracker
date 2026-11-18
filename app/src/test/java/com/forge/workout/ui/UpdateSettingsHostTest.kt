@@ -46,6 +46,7 @@ class UpdateSettingsHostTest {
     private val preferences by lazy { PreferencesRepository(application, "update-settings-${UUID.randomUUID()}") }
     private val store = ViewModelStore()
     private val now = 1_790_000_000_000L
+    private val requestedDownloads = mutableListOf<AvailableUpdate>()
 
     @After fun tearDown() { store.clear() }
 
@@ -98,7 +99,8 @@ class UpdateSettingsHostTest {
         checkButton().performClick()
         awaitMessage(text(R.string.update_found, release.version))
         compose.onNodeWithText(text(R.string.update_download)).assertIsEnabled().performClick()
-        assertEquals(listOf(release.apkUrl), handler.uris)
+        assertEquals(listOf(release), requestedDownloads)
+        assertEquals(emptyList<String>(), handler.uris)
         assertEquals(2, calls.get())
     }
 
@@ -126,7 +128,8 @@ class UpdateSettingsHostTest {
             MaterialTheme {
                 CompositionLocalProvider(LocalUriHandler provides handler) {
                     Column {
-                        UpdateSettings(model, enabled = true, onCheck = { model.checkManually("test-settings") })
+                        UpdateSettings(model, enabled = true, onCheck = { model.checkManually("test-settings") },
+                            onDownload = { requestedDownloads.add(it) })
                     }
                 }
             }

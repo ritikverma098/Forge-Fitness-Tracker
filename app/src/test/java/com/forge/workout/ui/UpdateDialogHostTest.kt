@@ -90,7 +90,7 @@ class UpdateDialogHostTest {
         assertEquals(emptyList<String>(), handler.uris)
     }
 
-    @Test fun `Download Now delegates the exact release asset and dismisses after opening`() {
+    @Test fun `download delegates to the internal action without opening an external URL`() {
         val release = update(changelog = "The text mentions https://example.invalid/other.apk.")
         val handler = RecordingUriHandler()
         var downloaded = 0
@@ -98,12 +98,12 @@ class UpdateDialogHostTest {
 
         compose.onNodeWithText(text(R.string.update_download)).performClick()
 
-        assertEquals(listOf(release.apkUrl), handler.uris)
+        assertEquals(emptyList<String>(), handler.uris)
         assertEquals(1, downloaded)
         compose.onNodeWithText(text(R.string.update_available)).assertDoesNotExist()
     }
 
-    @Test fun `missing URL handler shows feedback and leaves the update dialog available`() {
+    @Test fun `a missing browser does not affect the internal download action`() {
         val release = update()
         val handler = RecordingUriHandler(IllegalArgumentException("No activity for URL", ActivityNotFoundException()))
         var downloaded = 0
@@ -111,11 +111,10 @@ class UpdateDialogHostTest {
 
         compose.onNodeWithText(text(R.string.update_download)).performClick()
 
-        compose.onNodeWithText(text(R.string.update_open_link_failed)).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.update_available)).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.update_later)).assertIsDisplayed()
-        assertEquals(listOf(release.apkUrl), handler.uris)
-        assertEquals(0, downloaded)
+        compose.onNodeWithText(text(R.string.update_open_link_failed)).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.update_available)).assertDoesNotExist()
+        assertEquals(emptyList<String>(), handler.uris)
+        assertEquals(1, downloaded)
     }
 
     private fun show(

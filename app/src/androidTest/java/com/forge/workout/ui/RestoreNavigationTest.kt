@@ -250,6 +250,10 @@ class RestoreNavigationTest {
 
     private fun navigate(destination: Int, marker: Int) {
         compose.onNode(hasText(text(destination), substring = false) and hasClickAction()).performClick()
+        if (destination == R.string.nutrition && marker == R.string.nutrition_empty) {
+            waitForTag("nutrition_workout_energy")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasText(text(marker)))
+        }
         waitForText(text(marker))
         compose.onNode(hasText(text(destination), substring = false) and hasClickAction()).assertIsSelected()
     }

@@ -27,10 +27,15 @@ import com.forge.workout.R
 import com.forge.workout.ui.components.openUpdateLink
 import com.forge.workout.updates.GitHubReleaseSource
 import com.forge.workout.updates.UpdateCheckResult
+import com.forge.workout.updates.AvailableUpdate
+import com.forge.workout.updates.ApkUpdateCoordinator
+import com.forge.workout.updates.UpdatePhase
+import com.forge.workout.ui.components.UpdateTransferPanel
 import com.forge.workout.viewmodel.UpdateViewModel
 
 @Composable
-internal fun UpdateSettings(updates: UpdateViewModel, enabled: Boolean, onCheck: () -> Unit) {
+internal fun UpdateSettings(updates: UpdateViewModel, enabled: Boolean, onCheck: () -> Unit,
+    downloads: ApkUpdateCoordinator? = null, canInstall: Boolean = true, onDownload: (AvailableUpdate) -> Unit) {
     val state by updates.state.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     var linkFailed by remember { mutableStateOf(false) }
@@ -60,11 +65,10 @@ internal fun UpdateSettings(updates: UpdateViewModel, enabled: Boolean, onCheck:
         Text(message, Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             style = MaterialTheme.typography.bodyMedium)
         if (result is UpdateCheckResult.Available) {
-            TextButton(onClick = {
-                if (open(result.release.apkUrl)) updates.downloaded(result.release)
-            }, enabled = enabled) { Text(stringResource(R.string.update_download)) }
+            ManualDownloadAction(downloads, result.release, enabled, onDownload)
         }
     }
+    if (downloads != null) UpdateTransferPanel(downloads, enabled, canInstall)
     TextButton(onClick = { open(GitHubReleaseSource.REPOSITORY_URL) }, enabled = enabled) {
         Text(stringResource(R.string.update_view_repository))
     }
@@ -76,4 +80,12 @@ internal fun UpdateSettings(updates: UpdateViewModel, enabled: Boolean, onCheck:
             Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             color = MaterialTheme.colorScheme.error)
     }
+}
+
+@Composable private fun ManualDownloadAction(downloads: ApkUpdateCoordinator?, release: AvailableUpdate,
+    enabled: Boolean, onDownload: (AvailableUpdate) -> Unit) {
+    val transfer = downloads?.state?.collectAsStateWithLifecycle()?.value
+    val busy = transfer != null && (transfer.verified || transfer.phase in setOf(UpdatePhase.PREPARING,
+        UpdatePhase.DOWNLOADING, UpdatePhase.VERIFYING, UpdatePhase.STAGING, UpdatePhase.HANDED_TO_INSTALLER, UpdatePhase.APPROVAL_READY))
+    if (!busy) TextButton(onClick = { onDownload(release) }, enabled = enabled) { Text(stringResource(R.string.update_download)) }
 }

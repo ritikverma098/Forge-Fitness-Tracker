@@ -19,6 +19,8 @@ import com.forge.workout.ui.components.RestAlertSettings
 import com.forge.workout.ui.screens.workout.restLabel
 import com.forge.workout.viewmodel.BackupUiState
 import com.forge.workout.viewmodel.UpdateViewModel
+import com.forge.workout.updates.ApkUpdateCoordinator
+import com.forge.workout.updates.AvailableUpdate
 
 @Composable internal fun SettingsScreen(
     preferences: UserPreferences,
@@ -34,6 +36,9 @@ import com.forge.workout.viewmodel.UpdateViewModel
     onCancelRestore: () -> Unit,
     updates: UpdateViewModel,
     onCheckUpdates: () -> Unit,
+    updateDownloads: ApkUpdateCoordinator,
+    canInstallUpdate: Boolean,
+    onDownloadUpdate: (AvailableUpdate) -> Unit,
 ) {
     BackHandler(enabled = backupState.busy) { }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -61,7 +66,8 @@ import com.forge.workout.viewmodel.UpdateViewModel
             BackupRestoreContent(backupState, onWriteBackup, onReadBackup, onConfirmRestore, onCancelRestore)
         }
         SettingsCard(stringResource(R.string.about)) {
-            UpdateSettings(updates, enabled = !backupState.busy && backupState.pending == null, onCheckUpdates)
+            UpdateSettings(updates, enabled = !backupState.busy && backupState.pending == null,
+                onCheck = onCheckUpdates, downloads = updateDownloads, canInstall = canInstallUpdate, onDownload = onDownloadUpdate)
         }
         Spacer(Modifier.height(24.dp))
     }

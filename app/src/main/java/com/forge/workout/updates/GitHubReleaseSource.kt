@@ -10,7 +10,6 @@ import java.io.IOException
 import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URISyntaxException
 import java.net.URL
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -22,7 +21,9 @@ internal data class AvailableUpdate(
     val title: String,
     val changelog: String,
     val publishedOn: LocalDate,
-    val apkUrl: String
+    val apkUrl: String,
+    val apkSize: Long? = null,
+    val apkSha256: String? = null
 )
 
 internal sealed interface UpdateCheckResult {
@@ -87,7 +88,7 @@ internal class GitHubReleaseSource(
             try { OffsetDateTime.parse(it).toLocalDate() }
             catch (_: DateTimeParseException) { null }
         } ?: return UpdateCheckResult.NoValidRelease
-        val apkUrl = release.apkUrl(tag, version.toString()) ?: return UpdateCheckResult.NoValidRelease
+        val apk = release.apkAsset(tag, version.toString()) ?: return UpdateCheckResult.NoValidRelease
         if (version <= installed) return UpdateCheckResult.UpToDate
         return UpdateCheckResult.Available(AvailableUpdate(
             version = version.toString(),
@@ -95,35 +96,37 @@ internal class GitHubReleaseSource(
             title = (release.opt("name") as? String).orEmpty().trim().take(160),
             changelog = (release.opt("body") as? String).orEmpty().trim(),
             publishedOn = published,
-            apkUrl = apkUrl
+            apkUrl = apk.url,
+            apkSize = apk.size,
+            apkSha256 = apk.digest
         ))
     }
 
-    private fun JSONObject.apkUrl(tag: String, version: String): String? {
+    private data class ApkAsset(val name: String, val url: String, val size: Long, val digest: String?)
+
+    private fun JSONObject.apkAsset(tag: String, version: String): ApkAsset? {
         val assets = optJSONArray("assets") ?: return null
         val candidates = (0 until assets.length()).mapNotNull { index ->
             val asset = assets.optJSONObject(index) ?: return@mapNotNull null
             val name = asset.opt("name") as? String ?: return@mapNotNull null
             val url = asset.opt("browser_download_url") as? String ?: return@mapNotNull null
-            if (asset.opt("state") != "uploaded" || (asset.opt("size") as? Number)?.toLong()?.let { it > 0 } != true ||
+            val size = (asset.opt("size") as? Number)?.toString()?.toLongOrNull() ?: return@mapNotNull null
+            if (asset.opt("state") != "uploaded" || size <= 0 ||
                 !APK_NAME.matches(name) || !isOfficialAsset(url, tag, name)) return@mapNotNull null
-            name to url
+            ApkAsset(name, url, size,
+                GitHubAssetPolicy.parseDigest(asset.opt("digest") as? String))
         }.distinct()
-        return candidates.singleOrNull { (name, _) -> name == "Forge-$version.apk" }?.second
-            ?: candidates.singleOrNull()?.second
+        return candidates.singleOrNull { it.name == "Forge-$version.apk" } ?: candidates.singleOrNull()
     }
 
     private fun isOfficialAsset(url: String, tag: String, name: String): Boolean {
-        val uri = try { URI(url) } catch (_: URISyntaxException) { return false }
-        return uri.scheme == "https" && uri.rawAuthority.equals("github.com", ignoreCase = true) &&
-            uri.rawQuery == null && uri.rawFragment == null &&
-            uri.rawPath?.count { it == '/' } == 6 &&
-            uri.path == "/$REPOSITORY/releases/download/$tag/$name"
+        return GitHubAssetPolicy.isOfficialAsset(url, tag, name)
     }
 
     companion object {
         private const val REPOSITORY = "ritikverma098/Forge-Fitness-Tracker"
         const val REPOSITORY_URL = "https://github.com/$REPOSITORY"
+        const val SIGNING_GUIDE_URL = "$REPOSITORY_URL/blob/main/docs/signing.md"
         const val LATEST_RELEASE_URL = "$REPOSITORY_URL/releases/latest"
         private const val API_URL = "https://api.github.com/repos/$REPOSITORY/releases/latest"
         private const val MAX_RESPONSE_BYTES = 512 * 1024
@@ -131,7 +134,7 @@ internal class GitHubReleaseSource(
     }
 }
 
-private data class StableVersion(
+internal data class StableVersion(
     val major: BigInteger,
     val minor: BigInteger,
     val patch: BigInteger

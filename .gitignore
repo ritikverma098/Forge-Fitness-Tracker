@@ -9,6 +9,7 @@
 *.ap_
 *.dex
 *.class
+*.idsig
 
 # Per-machine IDE, SDK and operating-system configuration
 .idea/
@@ -25,10 +26,15 @@ Desktop.ini
 
 # Signing material, credentials and environment-specific secrets
 *.jks
+*.jks.*
 *.keystore
 *.keystore.*
 *.p12
+*.p12.*
 *.pfx
+*.pfx.*
+*.pkcs12
+*.pkcs12.*
 *.pem
 *.key
 .env
@@ -42,6 +48,8 @@ service-account*.json
 firebase-adminsdk*.json
 keystore.properties
 signing.properties
+release-signing.properties
+production-signing.properties
 *credentials*.json
 google-services.json
 

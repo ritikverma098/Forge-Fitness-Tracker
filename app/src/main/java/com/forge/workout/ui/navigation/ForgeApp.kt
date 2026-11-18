@@ -49,12 +49,19 @@ import com.forge.workout.ui.screens.nutrition.NutritionScreen
 import com.forge.workout.ui.screens.nutrition.WorkoutCaloriesCard
 import com.forge.workout.ui.theme.ForgeTheme
 import com.forge.workout.ui.components.UpdateAvailableDialog
+import com.forge.workout.ui.components.UpdateInstallerHost
+import com.forge.workout.ui.components.UpdateTransferDialog
+import com.forge.workout.updates.ApkUpdateCoordinator
+import com.forge.workout.updates.AvailableUpdate
+import com.forge.workout.updates.UpdatePhase
 import com.forge.workout.viewmodel.*
 import com.forge.workout.preferences.ThemeMode
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.selects.select
 
 internal data class Destination(val route: String,val label: Int,val icon: ImageVector)
@@ -94,6 +101,10 @@ internal val destinations = listOf(
     val updates: UpdateViewModel = viewModel(factory = viewModelFactory { initializer {
         UpdateViewModel(application.preferences, application::canCheckLatestRelease, application::checkLatestRelease)
     } })
+    val downloads = application.apkUpdates
+    fun downloadUpdate(release: AvailableUpdate) {
+        if (downloads.download(release)) updates.downloaded(release)
+    }
     LifecycleResumeEffect(updates) {
         updates.checkAutomatically()
         onPauseOrDispose { }
@@ -209,10 +220,11 @@ internal val destinations = listOf(
         else -> false
     }
     val entryState = navigationEntry?.lifecycle?.currentStateFlow?.collectAsStateWithLifecycle()?.value
-    val safeForUpdate = state.ready && state.activeWorkout == null && workoutStarts == 0 &&
+    val safeForTransferUi = state.ready && workoutStarts == 0 &&
         !backupState.busy && backupState.pending == null &&
         snackbar.currentSnackbarData == null && entryState == Lifecycle.State.RESUMED &&
         allowsUpdateAt(navigationEntry, backupState.restoreGeneration)
+    val safeForUpdate = safeForTransferUi && state.activeWorkout == null
     val mainDestination = destinations.any { it.route == navigationEntry?.destination?.route }
     val persistentTabBar = rememberPersistentTabBarState(if (state.ready) navigationEntry?.destination?.route else null)
     LaunchedEffect(appErrors, nav, requestedWorkoutDeletions) { appErrors.collect { event -> when(event) {
@@ -250,8 +262,11 @@ internal val destinations = listOf(
         appViewModel.deleteWorkout(detail.workout.id)
     }
     ForgeTheme(state.preferences.themeMode) {
-        if (safeForUpdate) {
-            ForgeUpdatePrompt(updates, settingsEntryId = navigationEntry?.takeIf { it.destination.route == "settings" }?.id) {
+        UpdateInstallerHost(downloads, canLaunch = safeForUpdate)
+        ForgeUpdatePrompt(updates, downloads, safeForUpdate,
+            showTransfer = safeForTransferUi && (state.activeWorkout == null || navigationEntry?.destination?.route == "settings"),
+            settingsEntryId = navigationEntry?.takeIf { it.destination.route == "settings" }?.id,
+            onDownload = ::downloadUpdate) {
                 val entry = nav.currentBackStackEntry
                 val currentBackup = backupViewModel.state.value
                 entry != null && entry.id == navigationEntry?.id &&
@@ -261,7 +276,6 @@ internal val destinations = listOf(
                     currentBackup.pending == null &&
                     snackbar.currentSnackbarData == null
             }
-        }
         Scaffold(snackbarHost = { if (!mainDestination) SnackbarHost(snackbar) }) { padding ->
             Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize(),contentAlignment = Alignment.TopCenter) {
                 if(!state.ready) {
@@ -334,7 +348,8 @@ internal val destinations = listOf(
                             if (nav.canActFrom(backStack)) {
                                 updates.checkManually(backStack.id)
                             }
-                        }) }
+                        }, updateDownloads = downloads, canInstallUpdate = state.activeWorkout == null && workoutStarts == 0,
+                        onDownloadUpdate = ::downloadUpdate) }
                     composable("picker/{id}",arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStack ->
                         val id = backStack.arguments?.getLong("id") ?: return@composable
                         ExerciseLibraryScreen(state.exercises,libraryViewModel,{ exercise -> if(nav.canActFrom(backStack)) { workoutViewModel.addExercise(id,exercise.id); nav.popFrom(backStack) } },{ nav.popFrom(backStack) },
@@ -374,15 +389,22 @@ internal val destinations = listOf(
 }
 
 @Composable
-private fun ForgeUpdatePrompt(updates: UpdateViewModel, settingsEntryId: String?, stillSafe: () -> Boolean) {
+private fun ForgeUpdatePrompt(updates: UpdateViewModel, downloads: ApkUpdateCoordinator, safe: Boolean,
+    showTransfer: Boolean, settingsEntryId: String?, onDownload: (AvailableUpdate) -> Unit, stillSafe: () -> Boolean) {
     val state by updates.state.collectAsStateWithLifecycle()
+    val transfer by remember(downloads) {
+        downloads.state.map { it.phase to it.verified }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = UpdatePhase.PREPARING to false)
+    val transferBusy = transfer.second || transfer.first in setOf(UpdatePhase.PREPARING, UpdatePhase.DOWNLOADING,
+        UpdatePhase.VERIFYING, UpdatePhase.STAGING, UpdatePhase.HANDED_TO_INSTALLER, UpdatePhase.APPROVAL_READY)
     val pending = state.pending?.takeIf { settingsEntryId == null || it.settingsEntryId == settingsEntryId }
-    LaunchedEffect(pending, state.dialog, settingsEntryId) {
-        if (pending != null && stillSafe()) updates.presentPending(pending)
+    LaunchedEffect(pending, state.dialog, settingsEntryId, safe, transferBusy) {
+        if (pending != null && safe && !transferBusy && stillSafe()) updates.presentPending(pending)
     }
-    state.dialog?.takeIf { settingsEntryId == null || it.settingsEntryId == settingsEntryId }?.release?.let { release ->
+    state.dialog?.takeIf { safe && (settingsEntryId == null || it.settingsEntryId == settingsEntryId) }?.release?.let { release ->
         UpdateAvailableDialog(release, BuildConfig.VERSION_NAME,
             onLater = { updates.dismiss() }, onSkip = { updates.dismiss(skip = true) },
-            onDownloaded = { updates.downloaded(release) })
+            onDownloaded = { onDownload(release) })
     }
+    UpdateTransferDialog(downloads, show = showTransfer && state.dialog == null, canInstall = safe)
 }

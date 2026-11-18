@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.2 — 2026-11-18
+
+**Signing transition:** 1.4.2 uses a dedicated production release certificate. Existing development-signed installations, including published 1.4.1, require a one-time **verified local backup → uninstall → production install → restore**. Do not uninstall until the backup is stored outside Forge and checked. Optional food packs may need downloading/importing again. See [migration instructions](docs/signing.md).
+
+- Download selected compatible app updates inside Forge with progress, Cancel and Retry. Retain release notes, Later, Skip This Version, manual checks and the 24-hour automatic-check interval.
+- Stream validated official GitHub APK assets over approved HTTPS redirects. Require the GitHub API asset SHA-256 digest and exact size, enforce a 128 MiB limit, and verify package identity, increasing version and the complete current signing-certificate set before installation.
+- Use Android's PackageInstaller with explicit confirmation. Add only `REQUEST_INSTALL_PACKAGES`; return from source-permission settings to an explicit Install action. Do not interrupt active workouts or backup operations with installation.
+- Retain verified downloads for a safe Retry/Discard after installation cancellation. Remove incomplete downloads; reconcile installed versions at startup and clean the private APK/metadata after confirmed installation or 24-hour expiry.
+- Separate standard debug signing from private production release signing. Release tasks fail without complete production inputs; CI must explicitly request unsigned verification. Production signing uses a long-term owner-controlled PKCS12/RSA identity with v2/v3 APK signatures, without the legacy debug signer.
+- Keep signature equality strict; different signing identities require the documented manual migration. Android 8 cannot use proof-of-rotation, so this release does not claim a seamless signing-lineage transition on supported devices.
+- Add read-only GitHub Actions verification for host/Robolectric and importer tests, lint, debug and optimized unsigned release builds. Pin actions and catalog fixture checksums. CI never signs or publishes automatically.
+- Keep application ID `com.forge.workout`, version code 11, Room schema 4, portable backup format 3, historical nutrition snapshots and the independently versioned [1.4.0 food-pack assets](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.0).
+- Pass 739 host unit/Robolectric tests with no failures/errors/skips, 54 Android 17 instrumentation tests, 21 importer tests, lint with zero issues, and debug/optimized builds. Verify actual development-to-production backup/reinstall/restore on API 26/37, followed by real production-to-production system-installer updates with exact data/catalog preservation and 0 retained update files/bytes. Details are in the [production release report](docs/release-1.4.2.md). Existing small-viewport Android 8 UI-test failures were reproduced against 1.4.1 and remain documented in the [earlier verification record](docs/updater-verification-1.4.2.md).
+
 ## 1.4.1 — 2026-11-12
 
 - Reject contradictory recipe backups before changing stored data. Validate serving conversions and nutrition against frozen ingredient totals, preserving unknown nutrients, supported legacy backups and historical diary snapshots.

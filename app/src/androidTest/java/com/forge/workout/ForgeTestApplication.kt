@@ -9,6 +9,7 @@ import com.forge.workout.updates.UpdateCheckResult
 
 /** A separate data graph keeps UI tests away from installed training history. */
 class ForgeTestApplication : ForgeApplication() {
+    override val updateFilesDirectory get() = java.io.File(cacheDir, "forge_ui_test_updates")
     @Volatile internal var mockReleaseCheck: (suspend () -> UpdateCheckResult)? = null
 
     override fun canCheckLatestRelease() = mockReleaseCheck != null

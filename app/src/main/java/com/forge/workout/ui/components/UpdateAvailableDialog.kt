@@ -13,12 +13,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -37,8 +33,6 @@ internal fun UpdateAvailableDialog(
     onSkip: () -> Unit,
     onDownloaded: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
-    var linkFailed by remember(release.apkUrl) { mutableStateOf(false) }
     val date = release.publishedOn.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
     val notes = remember(release.changelog) {
         // Bound each text layout while allowing the full response to scroll.
@@ -74,17 +68,11 @@ internal fun UpdateAvailableDialog(
                     }
                 }
                 TextButton(onClick = onSkip) { Text(stringResource(R.string.update_skip)) }
-                if (linkFailed) {
-                    Text(stringResource(R.string.update_open_link_failed), color = MaterialTheme.colorScheme.error)
-                }
             }
         },
         dismissButton = { TextButton(onClick = onLater) { Text(stringResource(R.string.update_later)) } },
         confirmButton = {
-            Button(onClick = {
-                linkFailed = !openUpdateLink(uriHandler, release.apkUrl)
-                if (!linkFailed) onDownloaded()
-            }) { Text(stringResource(R.string.update_download)) }
+            Button(onClick = onDownloaded) { Text(stringResource(R.string.update_download)) }
         }
     )
 }
