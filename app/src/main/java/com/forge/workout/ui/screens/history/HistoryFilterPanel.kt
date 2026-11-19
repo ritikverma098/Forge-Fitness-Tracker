@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import com.forge.workout.R
 import com.forge.workout.model.Exercise
 import com.forge.workout.model.MuscleGroup
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.muscleLabel
 import com.forge.workout.utils.HistoryFilters
 import java.time.Instant
@@ -72,15 +74,22 @@ internal fun HistoryFilterPanel(
         filters.toDate != null -> stringResource(R.string.history_filter_to_date, filters.toDate.format(dateFormatter))
         else -> stringResource(R.string.history_filter_all_dates)
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.extraLarge,
+    ) {
         Column(
             Modifier.fillMaxWidth().testTag("history_filter_panel").verticalScroll(rememberScrollState())
                 .imePadding().padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.history_filter_title), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.history_filter_body), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ForgeIconTile(Icons.Rounded.DateRange, highlighted = true)
+                ForgeSectionHeading(stringResource(R.string.history_filter_title), Modifier.weight(1f),
+                    stringResource(R.string.history_filter_body))
+            }
             HistorySelectionField(
                 label = stringResource(R.string.history_filter_exercise),
                 valueLabel = selectedExercise?.let { historyExerciseLabel(it) } ?: stringResource(
@@ -148,6 +157,7 @@ private fun <T> HistorySelectionField(
         OutlinedTextField(
             value = valueLabel, onValueChange = {}, readOnly = true, singleLine = true,
             label = { Text(label) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            shape = MaterialTheme.shapes.medium,
             modifier = modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 320.dp)) {

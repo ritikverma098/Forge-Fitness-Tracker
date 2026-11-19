@@ -3,6 +3,8 @@ package com.forge.workout.ui.screens.nutrition
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,11 +30,12 @@ fun WorkoutCaloriesCard(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     NutritionCard(Modifier.testTag("workout_calories_card")) {
-        Text(stringResource(R.string.energy_title), style = MaterialTheme.typography.titleMedium)
+        NutritionSection(stringResource(R.string.energy_title), Icons.Rounded.Bolt)
         when {
-            state.loading -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            state.loading -> NutritionLoading(stringResource(R.string.nutrition_premium_loading))
             state.error -> {
-                Text(stringResource(R.string.energy_error), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.energy_error), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = viewModel::reload) { Text(stringResource(R.string.nutrition_retry)) }
             }
             state.workoutMissing -> Text(stringResource(R.string.energy_missing_workout), style = MaterialTheme.typography.bodyMedium)
@@ -81,8 +84,8 @@ internal fun ActivityChoices(selected: WorkoutActivityPreset, enabled: Boolean, 
     Text(stringResource(R.string.energy_activity), style = MaterialTheme.typography.titleMedium)
     LazyRow(Modifier.fillMaxWidth().testTag("energy_activity_choices"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(WorkoutActivityPreset.entries, key = { it.id }) { preset ->
-            FilterChip(selected == preset, onClick = { onSelected(preset) }, enabled = enabled,
-                label = { Text(activityLabel(preset)) }, modifier = Modifier.testTag("energy_activity_${preset.id}"))
+            NutritionFilterChip(selected == preset, onClick = { onSelected(preset) }, enabled = enabled,
+                label = activityLabel(preset), modifier = Modifier.testTag("energy_activity_${preset.id}"))
         }
     }
     Text(stringResource(R.string.energy_activity_met, activityLabel(selected), numberFormat(selected.met)),

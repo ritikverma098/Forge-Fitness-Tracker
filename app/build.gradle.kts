@@ -100,8 +100,8 @@ android {
         applicationId = "com.forge.workout"
         minSdk = 26
         targetSdk = 37
-        versionCode = 11
-        versionName = "1.4.2"
+        versionCode = 12
+        versionName = "1.4.3"
         testInstrumentationRunner = "com.forge.workout.ForgeTestRunner"
     }
     val validProductionSigning = productionSigning?.takeIf { signing ->

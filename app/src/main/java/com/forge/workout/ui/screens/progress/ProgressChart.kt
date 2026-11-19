@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.forge.workout.R
+import com.forge.workout.ui.components.ForgePanel
 import com.forge.workout.ui.components.dateFormat
 import com.forge.workout.ui.components.numberFormat
 import com.forge.workout.utils.MetricPoint
@@ -49,8 +48,7 @@ internal fun ProgressChart(title: String, points: List<ChartPoint>, unit: String
     val cleanPoints = remember(points) {
         points.map { it.copy(value = if (it.value.isFinite()) it.value.coerceAtLeast(0.0) else 0.0) }
     }
-    Card(modifier = Modifier.fillMaxWidth().testTag("progress_chart_card"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    ForgePanel(Modifier.fillMaxWidth().testTag("progress_chart_card")) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (cleanPoints.isEmpty()) {

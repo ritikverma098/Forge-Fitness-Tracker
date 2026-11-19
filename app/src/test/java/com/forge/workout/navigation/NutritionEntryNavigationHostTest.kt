@@ -152,7 +152,7 @@ class NutritionEntryNavigationHostTest {
         val trace = object : CompositionTracer {
             override fun isTraceInProgress() = true
             override fun traceEventStart(key: Int, dirty1: Int, dirty2: Int, info: String) {
-                if (info.substringBefore(" (") == "androidx.compose.material3.NavigationBar") {
+                if (info.substringBefore(" (") == "com.forge.workout.ui.navigation.RetainedNavigationBar") {
                     bodyExecutions.incrementAndGet()
                 }
             }
@@ -165,7 +165,7 @@ class NutritionEntryNavigationHostTest {
             waitForText(R.string.home_subtitle)
             waitForTag("forge_bottom_navigation")
             assertTabs(R.string.home)
-            assertTrue("The tracer must observe the initial Material NavigationBar body", bodyExecutions.get() > 0)
+            assertTrue("The tracer must observe the initial retained tab bar", bodyExecutions.get() > 0)
             val originalBar = compose.onNodeWithTag("forge_bottom_navigation").fetchSemanticsNode()
             val originalBarBounds = originalBar.boundsInRoot
             val originalHost = compose.onNodeWithTag("forge_navigation_host").fetchSemanticsNode().boundsInRoot
@@ -206,7 +206,7 @@ class NutritionEntryNavigationHostTest {
                     compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
                     waitForText(R.string.home_subtitle)
                 } else backTo(R.string.home_subtitle)
-                assertEquals("Back to unchanged Home must not execute Material NavigationBar again", 0, bodyExecutions.get())
+                assertEquals("Returning to Home must reuse the retained tab bar", 0, bodyExecutions.get())
                 assertRetainedHome()
             }
 
@@ -215,7 +215,7 @@ class NutritionEntryNavigationHostTest {
             compose.onAllNodes(tabRole).assertCountEquals(0)
             compose.runOnIdle { bodyExecutions.set(0) }
             backTo(R.string.home_subtitle)
-            assertEquals("Settings Back must retain the same Material bar body", 0, bodyExecutions.get())
+            assertEquals("Settings Back must reuse the retained tab bar", 0, bodyExecutions.get())
             assertRetainedHome()
             assertTrue(runBlocking { repository.observeWorkouts().first().isEmpty() })
         } finally {

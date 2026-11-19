@@ -3,29 +3,25 @@ package com.forge.workout.ui.screens.nutrition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.FactCheck
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Scale
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.nutrition.model.CustomFoodDraft
 import com.forge.workout.nutrition.model.CustomFoodFactory
@@ -104,7 +101,9 @@ fun CustomFoodScreen(
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(stringResource(R.string.custom_food_title), onBack = onBack)
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ForgeLoading(stringResource(R.string.nutrition_premium_loading))
+                }
                 state.error -> EmptyState(stringResource(R.string.food_details_error_title),
                     stringResource(R.string.custom_food_editor_error), Icons.Rounded.Restaurant,
                     viewModel::reload, stringResource(R.string.food_details_retry))
@@ -112,7 +111,8 @@ fun CustomFoodScreen(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item(key = "identity", contentType = "card") {
-                        CustomFoodCard {
+                        NutritionCard(emphasized = true) {
+                            NutritionSection(stringResource(R.string.nutrition_premium_food_identity), Icons.Rounded.Restaurant)
                             EditorField(draft.name, { value -> update { copy(name = value) } }, stringResource(R.string.custom_food_name),
                                 "custom_food_name", "name" in state.invalidFields, R.string.custom_food_name_error, busy)
                             EditorField(draft.brand, { value -> update { copy(brand = value) } }, stringResource(R.string.custom_food_brand),
@@ -120,23 +120,23 @@ fun CustomFoodScreen(
                         }
                     }
                     item(key = "basis", contentType = "card") {
-                        CustomFoodCard {
-                            Text(stringResource(R.string.custom_food_reference_title), style = MaterialTheme.typography.titleMedium)
+                        NutritionCard {
+                            NutritionSection(stringResource(R.string.custom_food_reference_title), Icons.Rounded.Scale)
                             Text(stringResource(R.string.custom_food_reference_description), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             EditorField(draft.baseAmount, { value -> update { copy(baseAmount = value) } }, stringResource(R.string.custom_food_base_amount),
                                 "custom_food_base_amount", "baseAmount" in state.invalidFields, R.string.custom_food_positive_error, busy, numeric = true)
                             LazyRow(Modifier.fillMaxWidth().testTag("custom_food_units"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(FoodUnit.entries, key = { it.name }) { unit ->
-                                    FilterChip(draft.baseUnit == unit, onClick = { update { copy(baseUnit = unit) } }, enabled = !busy,
-                                        label = { Text(editorUnitLabel(unit)) }, modifier = Modifier.testTag("custom_food_unit_${unit.name}"))
+                                    NutritionFilterChip(draft.baseUnit == unit, onClick = { update { copy(baseUnit = unit) } }, enabled = !busy,
+                                        label = editorUnitLabel(unit), modifier = Modifier.testTag("custom_food_unit_${unit.name}"))
                                 }
                             }
                         }
                     }
                     item(key = "macros", contentType = "card") {
-                        CustomFoodCard {
-                            Text(stringResource(R.string.custom_food_macros), style = MaterialTheme.typography.titleMedium)
+                        NutritionCard {
+                            NutritionSection(stringResource(R.string.custom_food_macros), Icons.AutoMirrored.Rounded.FactCheck)
                             Text(stringResource(R.string.custom_food_unknown_help), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             core.forEach { definition ->
@@ -149,10 +149,10 @@ fun CustomFoodScreen(
                         }
                     }
                     item(key = "optional_heading", contentType = "heading") {
-                        Text(stringResource(R.string.custom_food_optional_nutrients), style = MaterialTheme.typography.titleLarge)
+                        ForgeSectionHeading(stringResource(R.string.custom_food_optional_nutrients))
                     }
                     items(optional, key = { "nutrient_${it.code}" }, contentType = { "nutrient" }) { nutrient ->
-                        CustomFoodCard {
+                        NutritionCard {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 NutrientField(nutrient, { value -> update { withNutrient(nutrient.copy(value = value)) } },
                                     "nutrient:${nutrient.code}" in state.invalidFields, busy, Modifier.weight(1f))
@@ -172,8 +172,8 @@ fun CustomFoodScreen(
                         }
                     }
                     item(key = "measurements", contentType = "card") {
-                        CustomFoodCard {
-                            Text(stringResource(R.string.custom_food_conversions), style = MaterialTheme.typography.titleMedium)
+                        NutritionCard {
+                            NutritionSection(stringResource(R.string.custom_food_conversions), Icons.Rounded.Scale)
                             Text(stringResource(R.string.custom_food_conversion_help), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (draft.baseUnit != FoodUnit.GRAM) EditorField(draft.gramsPerBase,
@@ -185,7 +185,7 @@ fun CustomFoodScreen(
                         }
                     }
                     item(key = "notes", contentType = "card") {
-                        CustomFoodCard {
+                        NutritionCard {
                             EditorField(draft.notes, { value -> update { copy(notes = value) } }, stringResource(R.string.custom_food_notes),
                                 "custom_food_notes", "notes" in state.invalidFields, R.string.custom_food_notes_error, busy, multiline = true)
                         }
@@ -195,8 +195,7 @@ fun CustomFoodScreen(
                             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         Button(onClick = { if (!busy) viewModel.validatedFood()?.let(onSave) }, enabled = !busy,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("custom_food_save")) {
-                            if (busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.size(8.dp)) }
-                            Text(stringResource(R.string.custom_food_save))
+                            NutritionSaveLabel(stringResource(R.string.custom_food_save), busy)
                         }
                     }
                 }
@@ -222,19 +221,12 @@ fun CustomFoodScreen(
 }
 
 @Composable
-private fun CustomFoodCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-    }
-}
-
-@Composable
 private fun EditorField(value: String, onValue: (String) -> Unit, label: String, tag: String, invalid: Boolean,
     error: Int, busy: Boolean, modifier: Modifier = Modifier, numeric: Boolean = false, multiline: Boolean = false) {
     OutlinedTextField(value, onValue, modifier.fillMaxWidth().testTag(tag), enabled = !busy,
         label = { Text(label) }, singleLine = !multiline, minLines = if (multiline) 3 else 1, isError = invalid,
         keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Decimal else KeyboardType.Text,
-            imeAction = if (multiline) ImeAction.Default else ImeAction.Next), shape = RoundedCornerShape(18.dp),
+            imeAction = if (multiline) ImeAction.Default else ImeAction.Next), shape = MaterialTheme.shapes.medium,
         supportingText = if (invalid) { { Text(stringResource(error)) } } else null)
 }
 

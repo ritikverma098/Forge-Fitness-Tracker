@@ -1,8 +1,10 @@
 package com.forge.workout.ui.screens.library
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,22 +14,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,7 +51,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +58,7 @@ import com.forge.workout.R
 import com.forge.workout.model.Exercise
 import com.forge.workout.model.MuscleGroup
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeSearchField
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.exerciseTypeLabel
 import com.forge.workout.ui.components.muscleLabel
@@ -112,24 +116,17 @@ fun ExerciseLibraryScreen(
                 subtitle = stringResource(if (onSelect == null) R.string.library_subtitle else R.string.library_picker_subtitle),
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { editingId = null; editorError = null; showEditor = true }, enabled = !busy) {
+                    FilledTonalIconButton(onClick = { editingId = null; editorError = null; showEditor = true }, enabled = !busy) {
                         Icon(Icons.Outlined.Add, stringResource(R.string.library_new_exercise))
                     }
                 },
             )
-            OutlinedTextField(
+            ForgeSearchField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.library_search)) },
-                leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
-                        Icon(Icons.Outlined.Close, stringResource(R.string.library_clear_search))
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                placeholder = stringResource(R.string.library_search),
+                clearDescription = stringResource(R.string.library_clear_search),
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
             LazyRow(
                 modifier = Modifier.testTag("library_muscle_filters"),
@@ -163,6 +160,7 @@ fun ExerciseLibraryScreen(
                             }
                         },
                         label = { Text(muscleLabel(muscle)) },
+                        leadingIcon = if (muscleName == muscle.name) ({ Icon(Icons.Outlined.Check, null, Modifier.size(16.dp)) }) else null,
                     )
                 }
             }
@@ -174,29 +172,29 @@ fun ExerciseLibraryScreen(
             )
             if(picker) Text(stringResource(R.string.picker_rank_hint), Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (visible.isEmpty()) {
-                EmptyState(
-                    title = stringResource(R.string.library_no_results_title),
-                    description = stringResource(R.string.library_no_results_body),
-                    icon = Icons.Outlined.Search,
-                    onAction = { editingId = null; showEditor = true },
-                    actionLabel = stringResource(R.string.library_new_exercise),
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).testTag("library_exercise_results"),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(visible, key = { it.id }) { exercise ->
-                        ExerciseLibraryRow(
-                            exercise = exercise,
-                            onClick = { if (onSelect != null) onSelect(exercise) else detailId = exercise.id },
-                            onEdit = { editingId = exercise.id; showEditor = true },
-                            onDelete = { deletingId = exercise.id },
-                            enabled = !busy,
-                        )
-                    }
+            LazyColumn(
+                modifier = Modifier.weight(1f).testTag("library_exercise_results"),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (visible.isEmpty()) item(key = "empty") {
+                    EmptyState(
+                        title = stringResource(R.string.library_no_results_title),
+                        description = stringResource(R.string.library_no_results_body),
+                        icon = Icons.Outlined.Search,
+                        onAction = if (busy) null else ({ editingId = null; editorError = null; showEditor = true }),
+                        actionLabel = stringResource(R.string.library_new_exercise),
+                    )
+                }
+                items(visible, key = { it.id }, contentType = { "exercise" }) { exercise ->
+                    ExerciseLibraryRow(
+                        exercise = exercise,
+                        onClick = { if (onSelect != null) onSelect(exercise) else detailId = exercise.id },
+                        onEdit = { editingId = exercise.id; editorError = null; showEditor = true },
+                        onDelete = { deletingId = exercise.id },
+                        enabled = !busy,
+                        picker = picker,
+                    )
                 }
             }
         }
@@ -242,9 +240,9 @@ fun ExerciseLibraryScreen(
         AlertDialog(
             onDismissRequest = { detailId = null },
             title = { Text(exercise.name) },
-            icon = { Icon(Icons.Outlined.FitnessCenter, null) },
+            icon = { ExerciseThumbnail(exercise.primaryMuscleGroup) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(muscleLabel(exercise.primaryMuscleGroup), style = MaterialTheme.typography.titleMedium)
                     exercise.secondaryMuscleGroup?.let { Text(muscleLabel(it), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Text(exerciseTypeLabel(exercise.exerciseType))
@@ -275,45 +273,54 @@ private fun ExerciseLibraryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     enabled: Boolean,
+    picker: Boolean,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    val colors = MaterialTheme.colorScheme
+    var menu by remember { mutableStateOf(false) }
+    Surface(
+        onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large, color = colors.surfaceContainerLow,
+        border = BorderStroke(1.dp, colors.outlineVariant),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                Icon(
-                    Icons.Outlined.FitnessCenter,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(12.dp).size(20.dp),
-                )
-            }
+            ExerciseThumbnail(exercise.primaryMuscleGroup)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(exercise.name, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(exercise.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Text(
                     muscleLabel(exercise.primaryMuscleGroup),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.primary,
                 )
-                if (exercise.isCustom) Text(
-                    stringResource(R.string.library_custom),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(exerciseTypeLabel(exercise.exerciseType), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    if (exercise.isCustom) Text(stringResource(R.string.library_custom), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                }
             }
             if (exercise.isCustom) {
-                IconButton(onClick = onEdit, enabled = enabled) {
-                    Icon(Icons.Outlined.Edit, stringResource(R.string.library_edit, exercise.name), Modifier.size(20.dp))
+                Box {
+                    IconButton(onClick = { menu = true }, enabled = enabled) {
+                        Icon(Icons.Outlined.MoreHoriz, stringResource(R.string.exercise_options))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_edit, exercise.name)) },
+                            leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                            onClick = { menu = false; onEdit() }, enabled = enabled,
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_delete_description, exercise.name), color = colors.error) },
+                            leadingIcon = { Icon(Icons.Outlined.DeleteOutline, null, tint = colors.error) },
+                            onClick = { menu = false; onDelete() }, enabled = enabled,
+                        )
+                    }
                 }
-                IconButton(onClick = onDelete, enabled = enabled) {
-                    Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.library_delete_description, exercise.name), Modifier.size(20.dp))
-                }
+            } else {
+                Icon(if (picker) Icons.Outlined.Add else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    null, Modifier.size(20.dp), tint = colors.onSurfaceVariant)
             }
         }
     }

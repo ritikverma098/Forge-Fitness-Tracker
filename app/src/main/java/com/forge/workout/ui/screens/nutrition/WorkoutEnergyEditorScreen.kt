@@ -3,6 +3,8 @@ package com.forge.workout.ui.screens.nutrition
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.preferences.WeightUnit
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.viewmodel.WorkoutEnergyCommand
 import com.forge.workout.viewmodel.WorkoutEnergyDraft
@@ -48,7 +51,9 @@ fun WorkoutEnergyEditorScreen(
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(stringResource(R.string.energy_edit), onBack = onBack)
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ForgeLoading(stringResource(R.string.nutrition_premium_loading))
+                }
                 state.error -> EmptyState(stringResource(R.string.energy_title), stringResource(R.string.energy_error), Icons.Rounded.FitnessCenter,
                     viewModel::reload, stringResource(R.string.nutrition_retry))
                 state.workoutMissing -> EmptyState(stringResource(R.string.energy_title), stringResource(R.string.energy_missing_workout), Icons.Rounded.FitnessCenter)
@@ -57,8 +62,8 @@ fun WorkoutEnergyEditorScreen(
                 else -> LazyColumn(Modifier.weight(1f).testTag("workout_energy_list"),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (state.energy != null) item(key = "record", contentType = "card") {
-                        NutritionCard {
-                            Text(stringResource(R.string.energy_recorded), style = MaterialTheme.typography.titleMedium)
+                        NutritionCard(emphasized = true) {
+                            NutritionSection(stringResource(R.string.energy_recorded), Icons.Rounded.Bolt)
                             EnergyRecord(requireNotNull(state.energy), weightUnit)
                         }
                     }
@@ -75,6 +80,7 @@ fun WorkoutEnergyEditorScreen(
                     }
                     item(key = "manual", contentType = "form") {
                         NutritionCard {
+                            NutritionSection(stringResource(R.string.nutrition_premium_manual_energy), Icons.Rounded.Edit)
                             EnergyNumericField(draft.manualKcal, { value -> update { copy(manualKcal = value) } },
                                 R.string.energy_manual, "workout_energy_manual", "manualKcal" in state.invalidFields, R.string.energy_manual_error, busy)
                             Text(stringResource(R.string.energy_manual_help), style = MaterialTheme.typography.bodySmall,
@@ -84,8 +90,7 @@ fun WorkoutEnergyEditorScreen(
                     item(key = "save", contentType = "action") {
                         Button(onClick = { viewModel.validatedEstimate()?.let(onSave) }, enabled = !busy,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("workout_energy_save")) {
-                            if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            else Text(stringResource(R.string.energy_save))
+                            NutritionSaveLabel(stringResource(R.string.energy_save), busy)
                         }
                     }
                 }

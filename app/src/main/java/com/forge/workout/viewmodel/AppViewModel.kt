@@ -17,7 +17,8 @@ data class AppUiState(
     val workouts: List<WorkoutDetail> = emptyList(),
     val routines: List<RoutineDetail> = emptyList(),
     val preferences: UserPreferences = UserPreferences(),
-    val ready: Boolean = false
+    val ready: Boolean = false,
+    val startupError: String? = null,
 ) { val activeWorkout: WorkoutDetail? get() = workouts.firstOrNull { it.workout.endTime == null } }
 sealed interface AppEvent {
     data class Message(val value: String): AppEvent
@@ -27,16 +28,30 @@ sealed interface AppEvent {
 }
 class AppViewModel(private val repository: WorkoutRepository, private val preferencesRepository: PreferencesRepository,
     private val errorFormatter: (Throwable) -> String, private val newWorkoutName: () -> String): ViewModel() {
-    private val ready = MutableStateFlow(false)
+    private data class Startup(val ready: Boolean = false, val error: String? = null)
+    private val startup = MutableStateFlow(Startup())
     private val eventChannel = Channel<AppEvent>(Channel.BUFFERED)
     private val actions = Mutex()
     private val pendingWorkoutStarts = MutableStateFlow(0)
     val workoutStarts = pendingWorkoutStarts.asStateFlow()
     val events = eventChannel.receiveAsFlow()
-    val state = combine(repository.observeExercises(), repository.observeWorkouts(), repository.observeRoutines(), preferencesRepository.preferences, ready) { exercises,workouts,routines,preferences,loaded ->
-        AppUiState(exercises,workouts,routines,preferences,loaded)
+    val state = combine(repository.observeExercises(), repository.observeWorkouts(), repository.observeRoutines(), preferencesRepository.preferences, startup) { exercises,workouts,routines,preferences,load ->
+        AppUiState(exercises, workouts, routines, preferences, load.ready, load.error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppUiState())
-    init { perform { repository.ensureSeeded(); ready.value = true } }
+    init { retryStartup() }
+
+    fun retryStartup() = perform {
+        if (startup.value.ready) return@perform
+        startup.value = Startup()
+        try {
+            repository.ensureSeeded()
+            startup.value = Startup(ready = true)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            startup.value = Startup(error = errorFormatter(error))
+        }
+    }
     private fun perform(action: suspend () -> Unit) { viewModelScope.launch {
         actions.withLock {
             try { action() } catch(e: CancellationException) { throw e }

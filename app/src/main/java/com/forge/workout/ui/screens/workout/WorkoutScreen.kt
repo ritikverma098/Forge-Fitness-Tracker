@@ -6,11 +6,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,14 +19,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.forge.workout.R
 import com.forge.workout.model.*
 import com.forge.workout.preferences.*
 import com.forge.workout.ui.components.*
+import com.forge.workout.ui.screens.library.ExerciseThumbnail
 import com.forge.workout.viewmodel.*
 import com.forge.workout.utils.WorkoutPreviousPerformance
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,15 +35,17 @@ import kotlinx.coroutines.withContext
     detail: WorkoutDetail?, history: List<WorkoutDetail>, preferences: UserPreferences,
     viewModel: WorkoutViewModel, editing: Boolean, onStart: () -> Unit, onRoutines: () -> Unit,
     onAddExercise: () -> Unit, onFinish: () -> Unit, onDiscard: () -> Unit, onBack: () -> Unit,
-    onRestPreset: (Int) -> Unit, onLibrary: () -> Unit = {}, onEditorStateReset: () -> Unit = {}
+    onRestPreset: (Int) -> Unit, onLibrary: () -> Unit = {}, onEditorStateReset: () -> Unit = {},
+    routines: List<RoutineDetail> = emptyList(), onRoutineStart: ((Long) -> Unit)? = null,
+    onRecentWorkout: ((Long) -> Unit)? = null,
 ) {
     if(detail == null) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            ScreenHeader(stringResource(R.string.workout))
-            EmptyState(stringResource(R.string.ready_to_train), stringResource(R.string.workout_empty_description), Icons.Rounded.FitnessCenter, onStart, stringResource(R.string.start_workout))
-            OutlinedButton(onClick = onRoutines, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(stringResource(R.string.routines)) }
-            OutlinedButton(onClick = onLibrary, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(stringResource(R.string.exercise_library)) }
-        }
+        if (editing) {
+            Column(Modifier.fillMaxSize()) {
+                ScreenHeader(stringResource(R.string.edit_workout), onBack = onBack)
+                EmptyState(stringResource(R.string.detail_missing_title), stringResource(R.string.detail_missing_description), Icons.Rounded.FitnessCenter)
+            }
+        } else WorkoutOverview(history, routines, preferences.weightUnit, onStart, onRoutines, onLibrary, onRoutineStart, onRecentWorkout)
         return
     }
     val workout = detail.workout
@@ -58,6 +56,7 @@ import kotlinx.coroutines.withContext
     var showDiscard by rememberSaveable { mutableStateOf(false) }
     var showNotes by rememberSaveable(workout.id) { mutableStateOf(notes.isNotBlank()) }
     var showRest by remember { mutableStateOf(false) }
+    var showSessionOptions by remember { mutableStateOf(false) }
     val invalidInputs by viewModel.invalidInputs.collectAsStateWithLifecycle()
     val nameValid = name.trim().length in 1..100
     val notesValid = notes.length <= 5000
@@ -85,28 +84,50 @@ import kotlinx.coroutines.withContext
     LazyColumn(Modifier.fillMaxSize().testTag("workout_exercise_list"), contentPadding = PaddingValues(bottom = 24.dp)) {
         item(key = "workout_header", contentType = "workout_title") {
             ScreenHeader(stringResource(if(editing) R.string.edit_workout else R.string.workout), onBack = if(editing) onBack else null, actions = {
-                if(!editing) {
-                    IconButton(onClick = onLibrary) { Icon(Icons.Rounded.GridView, stringResource(R.string.exercise_library)) }
-                    IconButton(onClick = onRoutines) { Icon(Icons.Rounded.ViewList, stringResource(R.string.routines)) }
+                if (!editing) {
+                    FilledTonalIconButton(onClick = onLibrary) {
+                        Icon(Icons.Rounded.GridView, stringResource(R.string.exercise_library))
+                    }
+                    FilledTonalIconButton(onClick = onRoutines) {
+                        Icon(Icons.AutoMirrored.Rounded.ViewList, stringResource(R.string.routines))
+                    }
                 }
-                IconButton(onClick = { showRest = true }) { Icon(Icons.Rounded.Timer, stringResource(R.string.rest_preset)) }
-                if(!editing) IconButton(onClick = { showDiscard = true }) { Icon(Icons.Rounded.DeleteOutline, stringResource(R.string.discard_workout)) }
             })
         }
         item(key = "workout_identity", contentType = "workout_identity") {
-            Column(Modifier.fillMaxWidth().testTag("workout_identity").padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Rounded.Circle, null, Modifier.size(8.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text(stringResource(if(editing) R.string.session_edit else R.string.session_live), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.weight(1f))
-                    WorkoutElapsedTime(workout.startTime, workout.endTime)
+            ForgePanel(Modifier.fillMaxWidth().testTag("workout_identity").padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ForgeIconTile(Icons.Rounded.Timer, highlighted = true)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(stringResource(if(editing) R.string.session_edit else R.string.session_live),
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            WorkoutElapsedTime(workout.startTime, workout.endTime)
+                        }
+                        IconButton(onClick = { showRest = true }) {
+                            Icon(Icons.Rounded.Timer, stringResource(R.string.rest_preset))
+                        }
+                        if (!editing) Box {
+                            IconButton(onClick = { showSessionOptions = true }) {
+                                Icon(Icons.Rounded.MoreHoriz, stringResource(R.string.workout_premium_session_options))
+                            }
+                            DropdownMenu(expanded = showSessionOptions, onDismissRequest = { showSessionOptions = false }) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.add_exercise)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, null) },
+                                    onClick = { showSessionOptions = false; onAddExercise() })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.discard_workout), color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+                                    onClick = { showSessionOptions = false; showDiscard = true })
+                            }
+                        }
+                    }
+                    OutlinedTextField(name, onValueChange = {
+                        name = it
+                        if(it.trim().length in 1..100 && notes.length <= 5000) viewModel.rename(workout.id,it,notes)
+                    }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_name)) }, singleLine = true,
+                        isError = !nameValid, supportingText = if (nameValid) null else ({ Text(stringResource(R.string.workout_name_limit)) }),
+                        shape = MaterialTheme.shapes.medium)
                 }
-                OutlinedTextField(name, onValueChange = {
-                    name = it
-                    if(it.trim().length in 1..100 && notes.length <= 5000) viewModel.rename(workout.id,it,notes)
-                }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_name)) }, singleLine = true,
-                    isError = !nameValid, supportingText = { if(!nameValid) Text(stringResource(R.string.workout_name_limit)) }, shape = RoundedCornerShape(18.dp))
             }
         }
         item(key = "workout_muscles", contentType = "workout_muscles") {
@@ -117,7 +138,8 @@ import kotlinx.coroutines.withContext
                     items(MuscleGroup.entries, key = { it.name }) { group ->
                         FilterChip(selected = group in workout.muscleGroups,
                             onClick = { viewModel.toggleMuscleGroup(workout.id, group) },
-                            label = { Text(muscleLabel(group)) })
+                            label = { Text(muscleLabel(group)) },
+                            leadingIcon = if (group in workout.muscleGroups) ({ Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }) else null)
                     }
                 }
             }
@@ -125,9 +147,15 @@ import kotlinx.coroutines.withContext
         item(key = "workout_notes", contentType = "workout_notes") {
             Column(Modifier.fillMaxWidth().testTag("workout_notes_section").padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(onClick = { showNotes = !showNotes }) { Icon(Icons.AutoMirrored.Rounded.Notes,null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.workout_notes)) }
+                FilledTonalButton(onClick = { showNotes = !showNotes }) {
+                    Icon(Icons.AutoMirrored.Rounded.Notes, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.workout_notes))
+                    Icon(if (showNotes) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, Modifier.padding(start = 4.dp).size(18.dp))
+                }
                 AnimatedVisibility(showNotes) {
-                    OutlinedTextField(notes, { notes = it; if(name.trim().length in 1..100 && it.length <= 5000) viewModel.rename(workout.id,name,it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_notes)) }, isError = !notesValid, supportingText = { if(!notesValid) Text(stringResource(R.string.notes_limit)) },shape = RoundedCornerShape(18.dp))
+                    OutlinedTextField(notes, { notes = it; if(name.trim().length in 1..100 && it.length <= 5000) viewModel.rename(workout.id,name,it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.workout_notes)) }, isError = !notesValid,
+                        supportingText = if (notesValid) null else ({ Text(stringResource(R.string.notes_limit)) }), shape = MaterialTheme.shapes.medium)
                 }
             }
         }
@@ -152,7 +180,7 @@ import kotlinx.coroutines.withContext
             }
             item(key = "exercise_${exercise.entry.id}_add_set", contentType = "exercise_footer") {
                 ExerciseLogSurface(bottom = true, modifier = Modifier.padding(bottom = 16.dp)) {
-                    TextButton(onClick = { viewModel.addSet(exercise.entry.id) },
+                    FilledTonalButton(onClick = { viewModel.addSet(exercise.entry.id) },
                         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                         Icon(Icons.Rounded.Add,null)
                         Spacer(Modifier.width(8.dp))
@@ -174,8 +202,16 @@ import kotlinx.coroutines.withContext
     }
     }
     }
-    if(showFinish) AlertDialog(onDismissRequest = { showFinish = false },title = { Text(stringResource(R.string.finish_title)) },text = { Text(stringResource(R.string.finish_message)) },confirmButton = { TextButton(onClick = { showFinish = false; onFinish() }) { Text(stringResource(R.string.finish_workout)) } },dismissButton = { TextButton(onClick = { showFinish = false }) { Text(stringResource(R.string.cancel)) } })
-    if(showDiscard) AlertDialog(onDismissRequest = { showDiscard = false },title = { Text(stringResource(R.string.discard_title)) },text = { Text(stringResource(R.string.discard_message)) },confirmButton = { TextButton(onClick = { showDiscard = false; onDiscard() }) { Text(stringResource(R.string.delete)) } },dismissButton = { TextButton(onClick = { showDiscard = false }) { Text(stringResource(R.string.cancel)) } })
+    if(showFinish) AlertDialog(onDismissRequest = { showFinish = false },
+        icon = { Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text(stringResource(R.string.finish_title)) },text = { Text(stringResource(R.string.finish_message)) },
+        confirmButton = { Button(onClick = { showFinish = false; onFinish() }) { Text(stringResource(R.string.finish_workout)) } },
+        dismissButton = { TextButton(onClick = { showFinish = false }) { Text(stringResource(R.string.cancel)) } })
+    if(showDiscard) AlertDialog(onDismissRequest = { showDiscard = false },
+        icon = { Icon(Icons.Rounded.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text(stringResource(R.string.discard_title)) },text = { Text(stringResource(R.string.discard_message)) },
+        confirmButton = { TextButton(onClick = { showDiscard = false; onDiscard() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { showDiscard = false }) { Text(stringResource(R.string.cancel)) } })
     if(showRest) AlertDialog(onDismissRequest = { showRest = false },title = { Text(stringResource(R.string.rest_preset)) },text = {
         Column { PreferencesRepository.REST_PRESETS.forEach { seconds ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -198,8 +234,8 @@ private data class ExerciseLogGroup(
     modifier: Modifier = Modifier, top: Boolean = false, bottom: Boolean = false, content: @Composable () -> Unit,
 ) {
     Surface(modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(topStart = if(top) 24.dp else 0.dp, topEnd = if(top) 24.dp else 0.dp,
-            bottomStart = if(bottom) 24.dp else 0.dp, bottomEnd = if(bottom) 24.dp else 0.dp),
+        shape = RoundedCornerShape(topStart = if(top) 20.dp else 0.dp, topEnd = if(top) 20.dp else 0.dp,
+            bottomStart = if(bottom) 20.dp else 0.dp, bottomEnd = if(bottom) 20.dp else 0.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow, content = content)
 }
 
@@ -215,10 +251,14 @@ private data class ExerciseLogGroup(
     }
     ExerciseLogSurface(top = true) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ExerciseThumbnail(item.exercise.primaryMuscleGroup)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(item.exercise.name,style = MaterialTheme.typography.titleLarge)
-                    Text(muscleLabel(item.exercise.primaryMuscleGroup),style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.primary)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(muscleLabel(item.exercise.primaryMuscleGroup), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(exerciseTypeLabel(item.exercise.exerciseType), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert,stringResource(R.string.exercise_options)) }
@@ -237,12 +277,15 @@ private data class ExerciseLogGroup(
                     notes = it
                     viewModel.inputValidity(workoutId,"notes_${item.entry.id}",it.length <= 5000)
                     if(it.length <= 5000) viewModel.exerciseNotes(item.entry.id,it)
-                },Modifier.fillMaxWidth(),label = { Text(stringResource(R.string.exercise_notes)) },isError = notes.length > 5000,supportingText = { if(notes.length > 5000) Text(stringResource(R.string.notes_limit)) },shape = RoundedCornerShape(14.dp))
+                },Modifier.fillMaxWidth(),label = { Text(stringResource(R.string.exercise_notes)) },isError = notes.length > 5000,
+                    supportingText = if (notes.length <= 5000) null else ({ Text(stringResource(R.string.notes_limit)) }), shape = MaterialTheme.shapes.medium)
             }
             if(item.sets.isNotEmpty()) SetTableHeader(item.exercise.exerciseType, preferences.weightUnit, showPrevious)
         }
     }
-    if(remove) AlertDialog(onDismissRequest = { remove = false },title = { Text(stringResource(R.string.remove_exercise_title)) },text = { Text(stringResource(R.string.remove_exercise_message)) },confirmButton = { TextButton(onClick = { remove = false; viewModel.removeExercise(item.entry.id) }) { Text(stringResource(R.string.delete)) } },dismissButton = { TextButton(onClick = { remove = false }) { Text(stringResource(R.string.cancel)) } })
+    if(remove) AlertDialog(onDismissRequest = { remove = false },title = { Text(stringResource(R.string.remove_exercise_title)) },text = { Text(stringResource(R.string.remove_exercise_message)) },
+        confirmButton = { TextButton(onClick = { remove = false; viewModel.removeExercise(item.entry.id) }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { remove = false }) { Text(stringResource(R.string.cancel)) } })
 }
 
 @Composable private fun ExerciseSetRow(

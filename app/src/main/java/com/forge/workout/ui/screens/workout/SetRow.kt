@@ -1,6 +1,7 @@
 package com.forge.workout.ui.screens.workout
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -48,7 +49,7 @@ private fun quantityField(type: ExerciseType) = when(type) {
 })
 
 @Composable internal fun SetTableHeader(type: ExerciseType, unit: WeightUnit, showPrevious: Boolean) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             HeaderCell(stringResource(R.string.set_column), Modifier.width(48.dp))
             if(showPrevious) HeaderCell(stringResource(R.string.previous_column), Modifier.weight(.8f))
             if(type == ExerciseType.WEIGHT_REPS) HeaderCell(unit.symbol, Modifier.weight(1f))
@@ -75,55 +76,67 @@ private fun quantityField(type: ExerciseType) = when(type) {
     val optionsDescription = stringResource(R.string.set_options, set.setNumber)
     val typeDescription = stringResource(R.string.set_type_description, set.setNumber, setTypeLabel(set.setType))
     val quantityReady = when(type) { ExerciseType.DURATION -> set.duration > 0; ExerciseType.DISTANCE -> set.distance > 0; else -> set.reps > 0 }
-        Column(Modifier.fillMaxWidth().testTag("workout_set_${set.id}")) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(Modifier.width(48.dp)) {
-                    TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)
-                        .testTag("set_options_${set.id}").semantics { contentDescription = optionsDescription },
-                        contentPadding = PaddingValues(0.dp)) {
-                        Text(setNumberLabel(set.setNumber, set.setType), Modifier.semantics { contentDescription = typeDescription },
-                            style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
-                    }
-                    DropdownMenu(menu, { menu = false }) {
-                        SetType.entries.forEach { type ->
-                            DropdownMenuItem(text = { Text(setTypeLabel(type)) },
-                                modifier = Modifier.testTag("set_type_${set.id}_${type.name}"),
-                                leadingIcon = { RadioButton(selected = set.setType == type, onClick = null) },
-                                onClick = { menu = false; onTypeChange(type) })
-                        }
-                        HorizontalDivider()
-                        DropdownMenuItem(text = { Text(stringResource(R.string.delete_set, set.setNumber)) },
-                            onClick = { menu = false; onDelete() })
-                    }
+    val colors = MaterialTheme.colorScheme
+    val rowShape = MaterialTheme.shapes.medium
+    val rowColor = if (set.completed) colors.primaryContainer.copy(alpha = .55f) else colors.surfaceContainer
+    Column(Modifier.fillMaxWidth().testTag("workout_set_${set.id}")
+        .background(rowColor, rowShape)
+        .border(1.dp, if (set.completed) colors.primary.copy(alpha = .45f) else colors.outlineVariant, rowShape)
+        .padding(horizontal = 2.dp, vertical = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(Modifier.width(48.dp)) {
+                TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)
+                    .testTag("set_options_${set.id}").semantics { contentDescription = optionsDescription },
+                    contentPadding = PaddingValues(0.dp)) {
+                    Text(setNumberLabel(set.setNumber, set.setType), Modifier.semantics { contentDescription = typeDescription },
+                        style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
                 }
-                if(showPrevious) PreviousCell(previous, type, unit, Modifier.weight(.8f))
-                if(type == ExerciseType.WEIGHT_REPS) NumericField(set.id, SetField.WEIGHT, unit.fromKg(set.weight),
-                    stringResource(R.string.numeric_weight, unit.symbol), false, unit.name, unit.fromKg(10_000.0), false, Modifier.weight(1f), ImeAction.Next,
-                    { quantityFocus.requestFocus() }, {
-                        validWeight = it; onValidityChange(SetField.WEIGHT, it)
-                    }, editorSessionId, onEditorStateReset, set.weight) { onValueChange(SetField.WEIGHT, unit.toKg(it)) }
-                val field = quantityField(type)
-                val value = when(field) { SetField.DURATION -> set.duration.toDouble(); SetField.DISTANCE -> set.distance; else -> set.reps.toDouble() }
-                val maximum = when(field) { SetField.DURATION -> 604_800.0; SetField.DISTANCE -> 100_000.0; else -> 10_000.0 }
-                NumericField(set.id, field, value, quantityLabel(type), field != SetField.DISTANCE, field.name,
-                    maximum, set.completed, Modifier.weight(1f).focusRequester(quantityFocus), ImeAction.Done,
-                    { focusManager.clearFocus() }, {
-                        validQuantity = it; onValidityChange(field, it)
-                    }, editorSessionId, onEditorStateReset) { onValueChange(field, it) }
-                Checkbox(checked = set.completed, onCheckedChange = {
-                    if(!it || validWeight && validQuantity) onCompleteChange(it)
-                }, enabled = set.completed || validWeight && validQuantity && quantityReady,
-                    modifier = Modifier.size(48.dp).testTag("set_done_${set.id}").semantics { contentDescription = completionDescription })
+                DropdownMenu(menu, { menu = false }) {
+                    SetType.entries.forEach { type ->
+                        DropdownMenuItem(text = { Text(setTypeLabel(type)) },
+                            modifier = Modifier.testTag("set_type_${set.id}_${type.name}"),
+                            leadingIcon = { RadioButton(selected = set.setType == type, onClick = null) },
+                            onClick = { menu = false; onTypeChange(type) })
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text(stringResource(R.string.delete_set, set.setNumber)) },
+                        onClick = { menu = false; onDelete() })
+                }
             }
-            if(!showPrevious && previous != null) PreviousCell(previous, type, unit, Modifier.padding(start = 52.dp))
-            if(!validWeight || !validQuantity) Text(stringResource(R.string.invalid_set), color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
+            if(showPrevious) PreviousCell(previous, type, unit, Modifier.weight(.8f))
+            if(type == ExerciseType.WEIGHT_REPS) NumericField(set.id, SetField.WEIGHT, unit.fromKg(set.weight),
+                stringResource(R.string.numeric_weight, unit.symbol), false, unit.name, unit.fromKg(10_000.0), false, Modifier.weight(1f), ImeAction.Next,
+                { quantityFocus.requestFocus() }, {
+                    validWeight = it; onValidityChange(SetField.WEIGHT, it)
+                }, editorSessionId, onEditorStateReset, set.weight) { onValueChange(SetField.WEIGHT, unit.toKg(it)) }
+            val field = quantityField(type)
+            val value = when(field) { SetField.DURATION -> set.duration.toDouble(); SetField.DISTANCE -> set.distance; else -> set.reps.toDouble() }
+            val maximum = when(field) { SetField.DURATION -> 604_800.0; SetField.DISTANCE -> 100_000.0; else -> 10_000.0 }
+            NumericField(set.id, field, value, quantityLabel(type), field != SetField.DISTANCE, field.name,
+                maximum, set.completed, Modifier.weight(1f).focusRequester(quantityFocus), ImeAction.Done,
+                { focusManager.clearFocus() }, {
+                    validQuantity = it; onValidityChange(field, it)
+                }, editorSessionId, onEditorStateReset) { onValueChange(field, it) }
+            Checkbox(checked = set.completed, onCheckedChange = {
+                if(!it || validWeight && validQuantity) onCompleteChange(it)
+            }, enabled = set.completed || validWeight && validQuantity && quantityReady,
+                modifier = Modifier.size(48.dp).testTag("set_done_${set.id}").semantics { contentDescription = completionDescription })
         }
+        if (set.setType != SetType.WORKING || !showPrevious && previous != null) {
+            FlowRow(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (set.setType != SetType.WORKING) Text(setTypeLabel(set.setType),
+                    style = MaterialTheme.typography.labelSmall, color = colors.primary)
+                if (!showPrevious && previous != null) PreviousCell(previous, type, unit, Modifier, showLabel = true)
+            }
+        }
+        if(!validWeight || !validQuantity) Text(stringResource(R.string.invalid_set), Modifier.padding(start = 10.dp, bottom = 4.dp),
+            color = colors.error, style = MaterialTheme.typography.bodySmall)
+    }
 }
-@Composable private fun PreviousCell(previous: WorkoutSet?, type: ExerciseType, unit: WeightUnit, modifier: Modifier) {
+@Composable private fun PreviousCell(previous: WorkoutSet?, type: ExerciseType, unit: WeightUnit, modifier: Modifier, showLabel: Boolean = false) {
     val description = previous?.let { setDescription(it, type, unit) } ?: "—"
     val accessible = if(previous != null) stringResource(R.string.previous, description) else stringResource(R.string.no_previous)
-    Text(description, modifier.semantics { contentDescription = accessible }, textAlign = TextAlign.Center,
+    Text(if (showLabel) accessible else description, modifier.semantics { contentDescription = accessible }, textAlign = TextAlign.Center,
         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -147,6 +160,9 @@ private fun quantityField(type: ExerciseType) = when(type) {
             (!required || parsed > 0) && (!integer || parsed % 1.0 == 0.0)
     }
     val isValid = valid(input.text)
+    var focused by remember(id, field) { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val fieldShape = RoundedCornerShape(10.dp)
     LaunchedEffect(id, field, required) {
         // Unchecking Done can make a previously rejected zero/blank valid without
         // another text edit. Persist it before the old quantity can be reused.
@@ -166,11 +182,19 @@ private fun quantityField(type: ExerciseType) = when(type) {
         }
     }, modifier = modifier.heightIn(min = 48.dp).testTag("numeric_${id}_${field.name}")
         .semantics { contentDescription = label }
-        .onFocusChanged { if(it.isFocused) {
-            val current = draft.presented(unitKey, initial, integer)
-            draft = current.copy(input = current.input.copy(selection = TextRange(0, current.input.text.length)))
-        } }
-        .background(if(isValid) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(10.dp))
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                val current = draft.presented(unitKey, initial, integer)
+                draft = current.copy(input = current.input.copy(selection = TextRange(0, current.input.text.length)))
+            }
+        }
+        .background(if (isValid) colors.surfaceContainerHigh else colors.errorContainer, fieldShape)
+        .border(1.dp, when {
+            !isValid -> colors.error
+            focused -> colors.primary
+            else -> colors.outline
+        }, fieldShape)
         .padding(horizontal = 6.dp, vertical = 10.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), singleLine = true,

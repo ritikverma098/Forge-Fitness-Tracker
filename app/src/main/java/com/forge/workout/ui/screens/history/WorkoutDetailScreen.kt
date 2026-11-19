@@ -1,6 +1,5 @@
 package com.forge.workout.ui.screens.history
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,8 +19,6 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +46,10 @@ import com.forge.workout.model.WorkoutExerciseDetail
 import com.forge.workout.model.WorkoutSet
 import com.forge.workout.preferences.WeightUnit
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeHero
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgePanel
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.MetricCard
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.dateFormat
@@ -106,11 +107,11 @@ fun WorkoutDetailScreen(
         ) {
             if (isSummary) {
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(detail.workout.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text(dateFormat(detail.workout.startTime), style = MaterialTheme.typography.bodyMedium)
-                        }
+                    ForgeHero(Icons.Rounded.CheckCircle, Modifier.fillMaxWidth()) {
+                        ForgeIconTile(Icons.Rounded.CheckCircle, highlighted = true)
+                        Text(detail.workout.name, style = MaterialTheme.typography.headlineMedium)
+                        Text(dateFormat(detail.workout.startTime), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -130,11 +131,11 @@ fun WorkoutDetailScreen(
             if (extraContent != null) item(key = "workout_extra", contentType = "extra") { extraContent() }
             if (isSummary && records.isNotEmpty()) {
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), modifier = Modifier.fillMaxWidth()) {
+                    ForgePanel(Modifier.fillMaxWidth(), emphasized = true) {
                         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.WorkspacePremium, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Text(stringResource(R.string.detail_prs), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                ForgeIconTile(Icons.Rounded.WorkspacePremium, highlighted = true)
+                                ForgeSectionHeading(stringResource(R.string.detail_prs))
                             }
                             records.forEach { record ->
                                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -167,7 +168,7 @@ fun WorkoutDetailScreen(
             }
             if (detail.workout.notes.isNotBlank()) {
                 item {
-                    Card(Modifier.fillMaxWidth()) {
+                    ForgePanel(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(stringResource(R.string.detail_notes), style = MaterialTheme.typography.titleMedium)
                             Text(detail.workout.notes, style = MaterialTheme.typography.bodyMedium)
@@ -175,7 +176,7 @@ fun WorkoutDetailScreen(
                     }
                 }
             }
-            items(detail.sortedExercises, key = { it.entry.id }) { entry -> ExerciseResultCard(entry, weightUnit) }
+            items(detail.sortedExercises, key = { it.entry.id }, contentType = { "exercise" }) { entry -> ExerciseResultCard(entry, weightUnit) }
             if (detail.exercises.isEmpty()) {
                 item { EmptyState(stringResource(R.string.detail_no_exercises), stringResource(R.string.detail_no_exercises_description), Icons.Rounded.FitnessCenter) }
             }
@@ -200,10 +201,15 @@ fun WorkoutDetailScreen(
 
 @Composable
 private fun ExerciseResultCard(detail: WorkoutExerciseDetail, weightUnit: WeightUnit) {
-    Card(modifier = Modifier.fillMaxWidth().animateContentSize(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    ForgePanel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(detail.exercise.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(muscleLabel(detail.exercise.primaryMuscleGroup), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                ForgeIconTile(Icons.Rounded.FitnessCenter)
+                Column(Modifier.weight(1f)) {
+                    Text(detail.exercise.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(muscleLabel(detail.exercise.primaryMuscleGroup), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            }
             if (detail.entry.notes.isNotBlank()) { Text(detail.entry.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (detail.sets.isEmpty()) {
                 Text(stringResource(R.string.detail_no_sets), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -211,7 +217,9 @@ private fun ExerciseResultCard(detail: WorkoutExerciseDetail, weightUnit: Weight
                 Row(Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.detail_set_header), modifier = Modifier.weight(.55f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.detail_result_header), modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(stringResource(R.string.detail_complete_header), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.detail_complete_header), modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 detail.sortedSets.forEach { set ->
@@ -221,12 +229,14 @@ private fun ExerciseResultCard(detail: WorkoutExerciseDetail, weightUnit: Weight
                             Text(setPerformance(set, detail.exercise.exerciseType, weightUnit), style = MaterialTheme.typography.bodyMedium, color = if (set.completed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
                             if (!set.completed) Text(stringResource(R.string.detail_incomplete), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Icon(
-                            if (set.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                            contentDescription = stringResource(if (set.completed) R.string.detail_set_status_complete else R.string.detail_set_status_incomplete),
-                            tint = if (set.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(22.dp),
-                        )
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                            Icon(
+                                if (set.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                contentDescription = stringResource(if (set.completed) R.string.detail_set_status_complete else R.string.detail_set_status_incomplete),
+                                tint = if (set.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                     }
                 }
             }

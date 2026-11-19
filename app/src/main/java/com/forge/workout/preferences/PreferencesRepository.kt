@@ -29,6 +29,8 @@ internal data class UpdatePreferences(
     val skippedVersion: String?
 )
 
+internal enum class RestNotificationPromptState { UNSEEN, OFFERED, RUNTIME_HANDLED }
+
 class PreferencesRepository(context: Context, name: String = "forge_preferences") {
     private val store = PreferenceDataStoreFactory.create(produceFile = { context.applicationContext.preferencesDataStoreFile(name) })
     private val theme = stringPreferencesKey("theme")
@@ -40,6 +42,17 @@ class PreferencesRepository(context: Context, name: String = "forge_preferences"
     private val updateDismissed = stringPreferencesKey("update_dismissed")
     private val updateDismissedAt = longPreferencesKey("update_dismissed_at")
     private val updateSkipped = stringPreferencesKey("update_skipped")
+    // This decision belongs to the current device. A portable restore must not reset it.
+    private val restNotificationPromptKey = stringPreferencesKey("rest_notification_prompt")
+    internal val restNotificationPrompt: Flow<RestNotificationPromptState> = store.data
+        .map { values ->
+            val remembered = values[restNotificationPromptKey]
+            if (remembered == null) RestNotificationPromptState.UNSEEN
+            else RestNotificationPromptState.entries.firstOrNull { it.name == remembered }
+                ?: RestNotificationPromptState.RUNTIME_HANDLED
+        }.catch { failure ->
+            if (failure is IOException) emit(RestNotificationPromptState.RUNTIME_HANDLED) else throw failure
+        }
     val preferences: Flow<UserPreferences> = store.data.catch {
         if (it is IOException) emit(emptyPreferences()) else throw it
     }.map { values ->
@@ -54,6 +67,21 @@ class PreferencesRepository(context: Context, name: String = "forge_preferences"
     suspend fun setUnit(value: WeightUnit) { store.edit { it[unit] = value.name } }
     suspend fun setRest(value: Int) { require(value in REST_PRESETS); store.edit { it[rest] = value } }
     suspend fun setConfirmation(value: Boolean) { store.edit { it[confirmation] = value } }
+
+    internal suspend fun claimRestNotificationOffer(): Boolean {
+        var claimed = false
+        store.edit {
+            if (it[restNotificationPromptKey] == null) {
+                it[restNotificationPromptKey] = RestNotificationPromptState.OFFERED.name
+                claimed = true
+            }
+        }
+        return claimed
+    }
+
+    internal suspend fun markRestNotificationRuntimeHandled() {
+        store.edit { it[restNotificationPromptKey] = RestNotificationPromptState.RUNTIME_HANDLED.name }
+    }
 
     internal suspend fun readUpdatePreferences(): UpdatePreferences {
         val values = store.data.first()

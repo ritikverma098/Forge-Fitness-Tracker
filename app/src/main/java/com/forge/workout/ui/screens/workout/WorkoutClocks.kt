@@ -10,12 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.forge.workout.R
+import com.forge.workout.ui.components.ForgePanel
 import com.forge.workout.ui.components.RestNotificationPermissionHint
 import com.forge.workout.ui.components.durationFormat
 import com.forge.workout.viewmodel.WorkoutViewModel
@@ -45,8 +45,10 @@ internal fun WorkoutElapsedTime(startTime: Long, endTime: Long?, modifier: Modif
         val now by lifecycleWallClock(startTime)
         now
     }
-    Text(durationFormat(nonnegativeDifference(timestamp, startTime) / 1_000),
-        modifier.testTag("workout_elapsed_time"), style = MaterialTheme.typography.titleMedium)
+    val elapsed = durationFormat(nonnegativeDifference(timestamp, startTime) / 1_000)
+    val description = stringResource(R.string.workout_premium_elapsed, elapsed)
+    Text(elapsed, modifier.testTag("workout_elapsed_time").semantics { contentDescription = description },
+        style = MaterialTheme.typography.headlineSmall)
 }
 
 @Composable
@@ -93,21 +95,23 @@ private fun nonnegativeDifference(later: Long, earlier: Long): Long {
 
 @Composable
 private fun RestTimerBar(remaining: Long, onSkip: () -> Unit, onAdjust: (Int) -> Unit) {
-    val remainingDescription = stringResource(R.string.rest_remaining, durationFormat(remaining))
+    val countdown = durationFormat(remaining)
+    val remainingDescription = stringResource(R.string.rest_remaining, countdown)
     val subtractDescription = stringResource(R.string.rest_subtract_description)
     val addDescription = stringResource(R.string.rest_add_description)
-    Surface(
+    ForgePanel(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).testTag("rest_timer_bar"),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(20.dp),
+        emphasized = true,
     ) {
-        FlowRow(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.Center,
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.Center,
             horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Timer, null, Modifier.size(18.dp))
-                Text(durationFormat(remaining), Modifier.padding(start = 6.dp).testTag("rest_timer_value").semantics {
-                    contentDescription = remainingDescription
-                }, style = MaterialTheme.typography.titleMedium)
+                Icon(Icons.Rounded.Timer, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.padding(start = 6.dp)) {
+                    Text(stringResource(R.string.workout_premium_rest_label), style = MaterialTheme.typography.labelSmall)
+                    Text(countdown, Modifier.testTag("rest_timer_value").semantics { contentDescription = remainingDescription },
+                        style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                }
             }
             TextButton(onClick = { onAdjust(-15) }, modifier = Modifier.testTag("rest_minus_15")
                 .semantics { contentDescription = subtractDescription }, contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -117,7 +121,7 @@ private fun RestTimerBar(remaining: Long, onSkip: () -> Unit, onAdjust: (Int) ->
                 .semantics { contentDescription = addDescription }, contentPadding = PaddingValues(horizontal = 8.dp)) {
                 Text(stringResource(R.string.rest_plus_15))
             }
-            TextButton(onClick = onSkip, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(stringResource(R.string.skip_rest)) }
+            Button(onClick = onSkip, contentPadding = PaddingValues(horizontal = 14.dp)) { Text(stringResource(R.string.skip_rest)) }
         }
     }
 }

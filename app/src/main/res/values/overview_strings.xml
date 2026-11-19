@@ -7,17 +7,11 @@
     <string name="home_start_workout">Start workout</string>
     <string name="home_resume_workout">Resume workout</string>
     <string name="home_in_progress">Workout in progress</string>
-    <string name="home_total_workouts">Total workouts</string>
-    <string name="home_this_week">This week</string>
-    <string name="home_last_workout">Last workout</string>
     <string name="home_no_last_workout">Your first workout is ahead</string>
     <string name="home_recent_workouts">Recent workouts</string>
     <string name="home_see_all">See all</string>
-    <string name="home_explore">Make it your own</string>
     <string name="home_exercises">Exercise library</string>
-    <string name="home_exercises_description">Find movements and add your own.</string>
     <string name="home_routines">Your routines</string>
-    <string name="home_routines_description">Create a plan you can repeat.</string>
     <string name="overview_settings">Settings</string>
     <string name="history_title">History</string>
     <string name="history_subtitle">Every session is a step forward.</string>

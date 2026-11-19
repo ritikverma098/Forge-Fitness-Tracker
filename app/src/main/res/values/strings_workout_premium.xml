@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="workout_premium_subtitle">Log a session or train from a saved routine.</string>
+    <string name="workout_premium_quick_routines">Start a routine</string>
+    <string name="workout_premium_recent_sessions">Recent workouts</string>
+    <string name="workout_premium_session_options">Workout options</string>
+    <string name="workout_premium_elapsed">Elapsed time: %1$s</string>
+    <string name="workout_premium_rest_label">Rest timer</string>
+</resources>

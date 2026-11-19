@@ -14,10 +14,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -37,7 +37,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,6 +46,9 @@ import com.forge.workout.model.ExerciseType
 import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.preferences.WeightUnit
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgePanel
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.MetricCard
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.dateFormat
@@ -88,15 +90,18 @@ fun ProgressScreen(
                 }
             } else {
                 item {
-                    Card(
+                    ForgePanel(
                         onClick = { showPicker = true },
                         modifier = Modifier.fillMaxWidth().testTag("progress_exercise_picker"),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        emphasized = true,
                     ) {
-                        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ForgeIconTile(Icons.Rounded.FitnessCenter, highlighted = true)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(stringResource(R.string.progress_choose_exercise), style = MaterialTheme.typography.labelLarge)
-                                Text(exerciseLabel(selected), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.progress_choose_exercise), style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary)
+                                Text(exerciseLabel(selected), style = MaterialTheme.typography.titleLarge)
                                 Text(muscleLabel(selected.primaryMuscleGroup), style = MaterialTheme.typography.bodySmall)
                             }
                             Icon(Icons.Rounded.ExpandMore, contentDescription = null)
@@ -122,12 +127,10 @@ fun ProgressScreen(
                         )
                     }
                     item {
-                        Text(stringResource(R.string.progress_recent_sessions),
-                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        ForgeSectionHeading(stringResource(R.string.progress_recent_sessions))
                     }
-                    items(recent, key = { it.workoutId }) { session ->
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    items(recent, key = { it.workoutId }, contentType = { "session" }) { session ->
+                        ForgePanel(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(dateFormat(session.date), style = MaterialTheme.typography.titleSmall)
                                 Text(pluralStringResource(R.plurals.progress_logged_sets, session.sets.size, session.sets.size),
@@ -155,6 +158,11 @@ private fun ProgressSelectors(
     onMetric: (ProgressMetric) -> Unit,
     onRange: (ProgressRange) -> Unit,
 ) {
+    val chipColors = FilterChipDefaults.filterChipColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        selectedContainerColor = MaterialTheme.colorScheme.primary,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.progress_metric_label), style = MaterialTheme.typography.labelLarge)
         LazyRow(Modifier.fillMaxWidth().testTag("progress_metric_filters"),
@@ -164,6 +172,7 @@ private fun ProgressSelectors(
                     selected = state.metric == metric,
                     onClick = { onMetric(metric) },
                     label = { Text(metricLabel(metric)) },
+                    colors = chipColors,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("progress_metric_${metric.name}"),
                 )
             }
@@ -177,6 +186,7 @@ private fun ProgressSelectors(
                     selected = state.range == range,
                     onClick = { onRange(range) },
                     label = { Text(rangeLabel(range)) },
+                    colors = chipColors,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("progress_range_${range.name}")
                         .semantics { contentDescription = description },
                 )
@@ -280,7 +290,7 @@ private fun ExercisePicker(exercises: List<Exercise>, onDismiss: () -> Unit, onS
     var query by rememberSaveable { mutableStateOf("") }
     val filtered = remember(exercises, query) { exercises.filter { it.name.contains(query.trim(), ignoreCase = true) } }
     Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
+        ForgePanel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(stringResource(R.string.progress_choose_exercise), style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(
@@ -300,8 +310,7 @@ private fun ExercisePicker(exercises: List<Exercise>, onDismiss: () -> Unit, onS
                         }
                     }
                     items(filtered, key = { it.id }) { exercise ->
-                        Card(onClick = { onSelect(exercise.id) }, modifier = Modifier.fillMaxWidth().testTag("progress_exercise_${exercise.id}"),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                        ForgePanel(onClick = { onSelect(exercise.id) }, modifier = Modifier.fillMaxWidth().testTag("progress_exercise_${exercise.id}")) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(exerciseLabel(exercise), style = MaterialTheme.typography.titleSmall)
                                 Text(muscleLabel(exercise.primaryMuscleGroup), style = MaterialTheme.typography.labelMedium,

@@ -4,15 +4,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -24,6 +22,7 @@ import com.forge.workout.nutrition.model.DiaryMath
 import com.forge.workout.nutrition.model.NutrientTotal
 import com.forge.workout.nutrition.model.NutritionHistoryDay
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeProgressBar
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.numberFormat
 import com.forge.workout.viewmodel.NutritionHistoryViewModel
@@ -41,12 +40,12 @@ fun NutritionHistoryScreen(viewModel: NutritionHistoryViewModel, onBack: () -> U
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(stringResource(R.string.nutrition_history_title), rangeLabel(state.fromDay, state.toDay), onBack,
             actions = {
-                IconButton(onClick = {
+                FilledTonalIconButton(onClick = {
                     from = state.fromDay.takeUnless { it.isBlank() || it == "0001-01-01" } ?: LocalDate.now().minusDays(29).toString()
                     to = state.toDay.takeUnless { it.isBlank() || it == "9999-12-31" } ?: LocalDate.now().toString()
                     invalid = false; showRange = true
                 }, modifier = Modifier.testTag("nutrition_history_range")) {
-                    Icon(Icons.Rounded.DateRange, stringResource(R.string.nutrition_history_range))
+                    Icon(Icons.Rounded.CalendarMonth, stringResource(R.string.nutrition_history_range))
                 }
             })
         LazyColumn(Modifier.weight(1f).testTag("nutrition_history_list"),
@@ -60,7 +59,7 @@ fun NutritionHistoryScreen(viewModel: NutritionHistoryViewModel, onBack: () -> U
             }
             items(state.days, key = { "day_${it.day}" }, contentType = { "day" }) { day -> HistoryDayCard(day) { onDay(day.day) } }
             if (state.loading) item(key = "loading", contentType = "status") {
-                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                NutritionLoading(stringResource(R.string.nutrition_premium_loading))
             }
             if (state.hasMore && !state.loading && !state.error) item(key = "more", contentType = "action") {
                 OutlinedButton(onClick = viewModel::loadMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("nutrition_history_more")) {
@@ -88,7 +87,7 @@ fun NutritionHistoryScreen(viewModel: NutritionHistoryViewModel, onBack: () -> U
             TextButton(onClick = { if (viewModel.setRange(from, to)) showRange = false else invalid = true },
                 modifier = Modifier.testTag("nutrition_history_apply")) { Text(stringResource(R.string.nutrition_history_apply)) }
         }, dismissButton = {
-            Row {
+            FlowRow {
                 TextButton(onClick = { viewModel.setRange("", ""); showRange = false }, modifier = Modifier.testTag("nutrition_history_clear")) {
                     Text(stringResource(R.string.nutrition_history_clear))
                 }
@@ -102,12 +101,10 @@ private fun HistoryDayCard(day: NutritionHistoryDay, onOpen: () -> Unit) {
     val goal = day.goal?.kcal
     val remaining = DiaryMath.remaining(goal, day.totals.kcal)
     val missing = !day.totals.kcal.complete || !day.totals.protein.complete || !day.totals.carbs.complete || !day.totals.fat.complete
-    Surface(onClick = onOpen, modifier = Modifier.fillMaxWidth().testTag("nutrition_history_day_${day.day}"),
-        shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    NutritionRow(Modifier.testTag("nutrition_history_day_${day.day}"), onOpen) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(historyDate(day.day), style = MaterialTheme.typography.titleLarge)
-            Text(pluralStringResource(R.plurals.nutrition_history_entries, day.entryCount, day.entryCount),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            NutritionSection(historyDate(day.day), Icons.Rounded.CalendarMonth,
+                pluralStringResource(R.plurals.nutrition_history_entries, day.entryCount, day.entryCount))
             Text(historyTotal(day.totals.kcal, day.entryCount, true), Modifier.testTag("nutrition_history_kcal_${day.day}"),
                 style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
             Text(if (goal == null) stringResource(R.string.nutrition_goal_unset)
@@ -119,7 +116,10 @@ private fun HistoryDayCard(day: NutritionHistoryDay, onOpen: () -> Unit) {
                 remaining > 0 -> stringResource(R.string.nutrition_history_remaining, stringResource(R.string.nutrition_kcal, numberFormat(remaining)))
                 else -> stringResource(R.string.nutrition_history_on_goal)
             }, Modifier.testTag("nutrition_history_goal_status_${day.day}"), style = MaterialTheme.typography.bodySmall,
-                color = if (remaining != null && remaining < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (goal != null && goal > 0 && day.totals.kcal.complete) {
+                ForgeProgressBar((day.totals.kcal.knownValue / goal).toFloat())
+            }
             HorizontalDivider()
             HistoryMacro(stringResource(R.string.food_protein), day.totals.protein, day.entryCount, "nutrition_history_protein_${day.day}")
             HistoryMacro(stringResource(R.string.food_carbs), day.totals.carbs, day.entryCount, "nutrition_history_carbs_${day.day}")

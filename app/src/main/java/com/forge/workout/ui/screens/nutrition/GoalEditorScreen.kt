@@ -2,9 +2,9 @@ package com.forge.workout.ui.screens.nutrition
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.nutrition.model.NutritionGoalEntity
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.viewmodel.GoalDraft
 import com.forge.workout.viewmodel.GoalEditorViewModel
@@ -52,15 +53,16 @@ fun GoalEditorScreen(
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(stringResource(R.string.nutrition_goals), onBack = onBack)
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ForgeLoading(stringResource(R.string.nutrition_premium_loading))
+                }
                 state.error -> EmptyState(stringResource(R.string.nutrition_error_title), stringResource(R.string.nutrition_error_description),
                     Icons.Rounded.Flag, viewModel::reload, stringResource(R.string.nutrition_retry))
                 else -> LazyColumn(Modifier.weight(1f).testTag("goal_list"),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item(key = "effective", contentType = "card") {
-                        NutritionCard {
-                            Text(stringResource(R.string.nutrition_goals_effective), style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        NutritionCard(emphasized = true) {
+                            NutritionSection(stringResource(R.string.nutrition_goals_effective), Icons.Rounded.CalendarMonth)
                             Text(LocalDate.parse(draft.day).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
                                 Modifier.testTag("goal_effective_day"), style = MaterialTheme.typography.titleLarge)
                             Text(stringResource(R.string.nutrition_goals_help), style = MaterialTheme.typography.bodyMedium)
@@ -81,8 +83,7 @@ fun GoalEditorScreen(
                     item(key = "save", contentType = "action") {
                         Button(onClick = { viewModel.validatedGoal()?.let(onSave) }, enabled = !busy,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("goal_save")) {
-                            if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            else Text(stringResource(R.string.nutrition_goal_save))
+                            NutritionSaveLabel(stringResource(R.string.nutrition_goal_save), busy)
                         }
                     }
                 }
@@ -94,7 +95,7 @@ fun GoalEditorScreen(
 @Composable
 private fun GoalField(value: String, onValue: (String) -> Unit, label: Int, tag: String, invalid: Boolean, busy: Boolean) {
     OutlinedTextField(value, onValue, Modifier.fillMaxWidth().testTag(tag), label = { Text(stringResource(label)) },
-        enabled = !busy, singleLine = true, isError = invalid, shape = RoundedCornerShape(16.dp),
+        enabled = !busy, singleLine = true, isError = invalid, shape = MaterialTheme.shapes.medium,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
         supportingText = if (invalid) ({ Text(stringResource(R.string.nutrition_goal_error)) }) else null)
 }

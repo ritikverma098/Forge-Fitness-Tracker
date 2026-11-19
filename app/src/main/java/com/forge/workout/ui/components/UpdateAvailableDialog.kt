@@ -5,8 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +45,9 @@ internal fun UpdateAvailableDialog(
     }
     AlertDialog(
         onDismissRequest = onLater,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        icon = { ForgeIconTile(Icons.Rounded.SystemUpdate, highlighted = true) },
         title = { Text(stringResource(R.string.update_available)) },
         text = {
             Column {
@@ -50,14 +56,17 @@ internal fun UpdateAvailableDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (release.title.isNotBlank()) {
-                                Text(release.title, style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        ForgePanel(Modifier.fillMaxWidth(), emphasized = true) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.update_new_version, release.version),
+                                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                                if (release.title.isNotBlank()) {
+                                    Text(release.title, style = MaterialTheme.typography.titleSmall,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(stringResource(R.string.update_current_version, currentVersion))
+                                Text(stringResource(R.string.update_release_date, date))
                             }
-                            Text(stringResource(R.string.update_current_version, currentVersion))
-                            Text(stringResource(R.string.update_new_version, release.version))
-                            Text(stringResource(R.string.update_release_date, date))
                         }
                     }
                     item { Text(stringResource(R.string.update_whats_new), style = MaterialTheme.typography.titleSmall) }

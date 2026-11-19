@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_display_section">Display &amp; units</string>
+    <string name="settings_training_section">Training</string>
+    <string name="settings_data_section">Local data</string>
+    <string name="settings_app_section">App information</string>
+</resources>

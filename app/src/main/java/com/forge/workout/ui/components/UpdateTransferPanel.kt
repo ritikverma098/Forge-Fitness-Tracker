@@ -9,10 +9,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -25,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -42,6 +49,8 @@ import com.forge.workout.updates.ApkUpdateState
 import com.forge.workout.updates.GitHubReleaseSource
 import com.forge.workout.updates.UpdateFailure
 import com.forge.workout.updates.UpdatePhase
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /** Progress is observed here, never by the workout list or its parent navigation. */
 @Composable
@@ -103,10 +112,23 @@ internal fun UpdateTransferContent(
         else -> R.string.update_transfer_failed
     }
     Column(Modifier.fillMaxWidth().testTag("update_transfer_panel"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(status), Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            style = MaterialTheme.typography.titleSmall)
-        if (state.version != null) Text(stringResource(R.string.update_transfer_version, state.version),
-            style = MaterialTheme.typography.bodyMedium)
+        ForgePanel(Modifier.fillMaxWidth(), emphasized = state.phase == UpdatePhase.READY) {
+            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                val icon = when (state.phase) {
+                    UpdatePhase.FAILED -> Icons.Rounded.ErrorOutline
+                    UpdatePhase.READY, UpdatePhase.INSTALLED -> Icons.Rounded.CheckCircle
+                    else -> Icons.Rounded.SystemUpdate
+                }
+                ForgeIconTile(icon, highlighted = state.phase != UpdatePhase.FAILED)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(status), Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        style = MaterialTheme.typography.titleSmall)
+                    if (state.version != null) Text(stringResource(R.string.update_transfer_version, state.version),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         if (state.phase == UpdatePhase.DOWNLOADING) {
             DownloadProgress(state)
         } else if (state.phase in setOf(UpdatePhase.PREPARING, UpdatePhase.VERIFYING, UpdatePhase.STAGING)) {
@@ -160,7 +182,7 @@ private fun DownloadProgress(state: ApkUpdateState) {
         val percent = (fraction * 100).toInt()
         val description = stringResource(R.string.update_transfer_progress_accessible,
             Formatter.formatFileSize(context, bytes), Formatter.formatFileSize(context, total), percent)
-        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().testTag("update_download_progress")
+        ForgeProgressBar(progress = fraction, modifier = Modifier.testTag("update_download_progress")
             .semantics { contentDescription = description })
         Text(stringResource(R.string.update_transfer_progress, Formatter.formatFileSize(context, bytes),
             Formatter.formatFileSize(context, total), percent))
@@ -171,20 +193,44 @@ private fun DownloadProgress(state: ApkUpdateState) {
 }
 
 @Composable
-internal fun UpdateTransferDialog(manager: ApkUpdateCoordinator, show: Boolean, canInstall: Boolean) {
-    val state by manager.state.collectAsStateWithLifecycle()
-    UpdateTransferDialogFrame(state, show) {
+internal fun UpdateTransferDialog(
+    manager: ApkUpdateCoordinator,
+    show: Boolean,
+    canInstall: Boolean,
+    hiddenAttempt: String? = null,
+    onHideAttempt: ((String) -> Unit)? = null,
+) {
+    val attempt by remember(manager) {
+        manager.state.map { it.visibleTransferAttempt() }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = null)
+    UpdateTransferDialogFrame(attempt, show, hiddenAttempt, onHideAttempt) {
         UpdateTransferPanel(manager, enabled = true, canInstall = canInstall)
     }
 }
 
+internal fun ApkUpdateState.visibleTransferAttempt(): String? =
+    version?.takeUnless { phase == UpdatePhase.IDLE }?.let { "$it:$attempt" }
+
 @Composable internal fun UpdateTransferDialogFrame(state: ApkUpdateState, show: Boolean, content: @Composable () -> Unit) {
-    var hiddenAttempt by rememberSaveable { mutableStateOf<String?>(null) }
-    val version = state.version
-    val identity = "$version:${state.attempt}"
-    if (!show || version == null || hiddenAttempt == identity || state.phase == UpdatePhase.IDLE) return
+    UpdateTransferDialogFrame(state.visibleTransferAttempt(), show, null, null, content)
+}
+
+@Composable
+private fun UpdateTransferDialogFrame(
+    attempt: String?,
+    show: Boolean,
+    hiddenAttempt: String?,
+    onHideAttempt: ((String) -> Unit)?,
+    content: @Composable () -> Unit,
+) {
+    var localHiddenAttempt by rememberSaveable { mutableStateOf<String?>(null) }
+    val hidden = if (onHideAttempt == null) localHiddenAttempt else hiddenAttempt
+    if (!show || attempt == null || hidden == attempt) return
+    val dismiss = { if (onHideAttempt == null) localHiddenAttempt = attempt else onHideAttempt(attempt) }
     AlertDialog(
-        onDismissRequest = { hiddenAttempt = identity },
+        onDismissRequest = dismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.extraLarge,
         title = { Text(stringResource(R.string.update_transfer_title)) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
@@ -192,7 +238,7 @@ internal fun UpdateTransferDialog(manager: ApkUpdateCoordinator, show: Boolean, 
             }
         },
         confirmButton = {
-            TextButton(onClick = { hiddenAttempt = identity }) { Text(stringResource(R.string.update_later)) }
+            TextButton(onClick = dismiss) { Text(stringResource(R.string.update_later)) }
         },
     )
 }

@@ -5,7 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,15 +17,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,7 +39,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,7 +56,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -70,6 +69,9 @@ import com.forge.workout.nutrition.model.CatalogPackEntity
 import com.forge.workout.nutrition.model.FoodEntity
 import com.forge.workout.nutrition.model.FoodUnit
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgeProgressBar
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.numberFormat
 import com.forge.workout.viewmodel.CatalogFeedback
@@ -110,10 +112,9 @@ fun FoodCatalogScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item(key = "manage", contentType = "controls") {
-                    CatalogCard {
-                        Text(stringResource(R.string.catalog_manage_title), style = MaterialTheme.typography.titleLarge)
-                        Text(stringResource(R.string.catalog_manage_description), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    NutritionCard(emphasized = true) {
+                        NutritionSection(stringResource(R.string.catalog_manage_title), Icons.Rounded.Inventory2,
+                            stringResource(R.string.catalog_manage_description))
                         Text(pluralStringResource(R.plurals.catalog_total_foods, state.totalFoods, state.totalFoods),
                             Modifier.testTag("catalog_food_count"), style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.colorScheme.primary)
@@ -134,11 +135,11 @@ fun FoodCatalogScreen(
                     }
                 }
                 if (state.busy) item(key = "progress", contentType = "status") {
-                    CatalogCard {
-                        Text(stringResource(R.string.catalog_preparing), style = MaterialTheme.typography.titleMedium)
+                    NutritionCard(emphasized = true) {
+                        NutritionSection(stringResource(R.string.catalog_preparing), Icons.Rounded.CloudDownload)
                         val progress = state.operation.progress.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
                         if (progress > 0f) {
-                            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().testTag("catalog_progress"))
+                            ForgeProgressBar(progress, Modifier.testTag("catalog_progress"))
                             Text(stringResource(R.string.catalog_progress_percent, (progress * 100).toInt()),
                                 style = MaterialTheme.typography.bodySmall)
                         } else LinearProgressIndicator(Modifier.fillMaxWidth().testTag("catalog_progress"))
@@ -153,7 +154,7 @@ fun FoodCatalogScreen(
                 }
                 feedbackResource(state)?.let { message ->
                     item(key = "feedback", contentType = "status") {
-                        CatalogCard {
+                        NutritionCard {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(stringResource(message), Modifier.weight(1f).testTag("catalog_feedback"),
                                     color = if (state.operation.error != null || state.feedback == CatalogFeedback.FAILED || state.readFailed)
@@ -182,23 +183,20 @@ fun FoodCatalogScreen(
                     }
                 }
                 item(key = "available_heading", contentType = "heading") {
-                    Text(stringResource(R.string.catalog_available_title), style = MaterialTheme.typography.titleLarge)
+                    ForgeSectionHeading(stringResource(R.string.catalog_available_title))
                 }
                 items(OfficialCatalogPacks.available, key = { "available_${it.id}" }, contentType = { "pack" }) { pack ->
                     AvailableCatalogCard(pack, state, openLink, { viewModel.installOfficialPack(pack.id) }, viewModel::cancel)
                 }
                 if (state.packs.isNotEmpty()) item(key = "installed_heading", contentType = "heading") {
-                    Text(stringResource(R.string.catalog_installed_title), style = MaterialTheme.typography.titleLarge)
+                    ForgeSectionHeading(stringResource(R.string.catalog_installed_title))
                 }
                 items(state.packs, key = { "pack_${it.id}" }, contentType = { "pack" }) { pack ->
                     InstalledCatalogCard(pack, openLink)
                 }
                 if (state.foods.isNotEmpty()) item(key = "preview_heading", contentType = "heading") {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.catalog_preview_title), style = MaterialTheme.typography.titleLarge)
-                        Text(stringResource(R.string.catalog_preview_description), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    ForgeSectionHeading(stringResource(R.string.catalog_preview_title),
+                        subtitle = stringResource(R.string.catalog_preview_description))
                 }
                 items(state.foods, key = { "food_${it.id}" }, contentType = { "food" }) { food ->
                     CatalogFoodRow(food, onFood)
@@ -210,13 +208,6 @@ fun FoodCatalogScreen(
         onDismiss = { showDownload = false },
         onDownload = { url, hash -> showDownload = false; viewModel.installUrl(url, hash) },
     )
-}
-
-@Composable
-private fun CatalogCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-    }
 }
 
 @Composable
@@ -235,14 +226,15 @@ private fun AvailableCatalogCard(
     val context = LocalContext.current
     val downloadSize = remember(context, pack.archiveBytes) { Formatter.formatShortFileSize(context, pack.archiveBytes) }
 
-    CatalogCard(Modifier.testTag("catalog_available_${pack.id}")) {
-        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(stringResource(pack.regionRes), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    NutritionCard(Modifier.testTag("catalog_available_${pack.id}")) {
+        NutritionSection(pack.name, Icons.Rounded.CloudDownload, stringResource(pack.regionRes))
         Text(stringResource(pack.descriptionRes), style = MaterialTheme.typography.bodyMedium)
-        Text(pluralStringResource(R.plurals.catalog_verified_foods, pack.foodCount, pack.foodCount),
-            style = MaterialTheme.typography.bodyMedium)
-        Text(stringResource(R.string.catalog_download_size, downloadSize), style = MaterialTheme.typography.bodySmall)
-        Text(stringResource(R.string.catalog_pack_version, pack.version), style = MaterialTheme.typography.bodySmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(pluralStringResource(R.plurals.catalog_verified_foods, pack.foodCount, pack.foodCount),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.catalog_download_size, downloadSize), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.catalog_pack_version, pack.version), style = MaterialTheme.typography.bodySmall)
+        }
         if (installed != null) {
             Text(stringResource(R.string.catalog_installed_version, installed.version), style = MaterialTheme.typography.bodySmall)
         }
@@ -250,7 +242,7 @@ private fun AvailableCatalogCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(stringResource(R.string.catalog_pack_license, pack.license), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { openLink(pack.sourceUrl) }) { Text(stringResource(R.string.catalog_view_source)) }
             TextButton(onClick = { openLink(pack.licenseUrl) }) { Text(stringResource(R.string.catalog_view_license)) }
         }
@@ -263,7 +255,7 @@ private fun AvailableCatalogCard(
                 if (failed) feedbackResource(state)?.let { message ->
                     Text(stringResource(message), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
-                OutlinedButton(onClick = onDownload, enabled = state.packsReady && !state.busy && !state.readFailed,
+                Button(onClick = onDownload, enabled = state.packsReady && !state.busy && !state.readFailed,
                     modifier = Modifier.fillMaxWidth().testTag("catalog_official_download_${pack.id}")) {
                     Text(stringResource(when {
                         failed -> R.string.catalog_official_retry
@@ -281,13 +273,8 @@ private fun AvailableCatalogCard(
 
 @Composable
 private fun InstalledCatalogCard(pack: CatalogPackEntity, openLink: (String) -> Unit) {
-    CatalogCard(Modifier.testTag("catalog_pack_${pack.id}")) {
-        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-            Text(stringResource(R.string.catalog_installed_status), color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelLarge)
-        }
+    NutritionCard(Modifier.testTag("catalog_pack_${pack.id}")) {
+        NutritionSection(pack.name, Icons.Rounded.CheckCircle, stringResource(R.string.catalog_installed_status))
         Text(pluralStringResource(R.plurals.catalog_pack_foods, pack.foodCount, pack.foodCount), style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.catalog_pack_version, pack.version), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.catalog_pack_source, pack.citation), style = MaterialTheme.typography.bodySmall,
@@ -312,25 +299,24 @@ private fun InstalledCatalogCard(pack: CatalogPackEntity, openLink: (String) -> 
 
 @Composable
 private fun CatalogFoodRow(food: FoodEntity, onFood: ((String) -> Unit)?) {
-    val content: @Composable () -> Unit = {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(food.name, style = MaterialTheme.typography.titleSmall)
-            if (food.brand.isNotBlank()) Text(food.brand, style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(when (food.baseUnit) {
-                FoodUnit.GRAM -> R.string.catalog_base_grams
-                FoodUnit.MILLILITER -> R.string.catalog_base_milliliters
-                FoodUnit.SERVING -> R.string.catalog_base_servings
-            }, numberFormat(food.baseAmount)), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (food.source.isNotBlank()) Text(food.source, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    NutritionRow(Modifier.testTag("catalog_food_${food.id}"), onClick = onFood?.let { open -> { open(food.id) } }) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ForgeIconTile(foodIcon(food))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(food.name, style = MaterialTheme.typography.titleMedium)
+                if (food.brand.isNotBlank()) Text(food.brand, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(when (food.baseUnit) {
+                    FoodUnit.GRAM -> R.string.catalog_base_grams
+                    FoodUnit.MILLILITER -> R.string.catalog_base_milliliters
+                    FoodUnit.SERVING -> R.string.catalog_base_servings
+                }, numberFormat(food.baseAmount)), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (food.source.isNotBlank()) Text(food.source, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (onFood != null) Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(20.dp))
         }
     }
-    val modifier = Modifier.fillMaxWidth().testTag("catalog_food_${food.id}")
-    if (onFood == null) Surface(modifier, shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow, content = content)
-    else Surface(onClick = { onFood(food.id) }, modifier = modifier, shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow, content = content)
 }
 
 @Composable
@@ -346,11 +332,13 @@ private fun DownloadCatalogDialog(onDismiss: () -> Unit, onDownload: (String, St
                 Text(stringResource(R.string.catalog_download_description), style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth().testTag("catalog_download_url"),
                     label = { Text(stringResource(R.string.catalog_download_url)) }, singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
                     isError = attempted && !validUrl,
                     supportingText = { if (attempted && !validUrl) Text(stringResource(R.string.catalog_invalid_url)) })
                 OutlinedTextField(hash, { hash = it }, Modifier.fillMaxWidth().testTag("catalog_download_hash"),
                     label = { Text(stringResource(R.string.catalog_download_hash)) }, singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), isError = attempted && !validHash,
                     supportingText = { if (attempted && !validHash) Text(stringResource(R.string.catalog_invalid_hash)) })
             }

@@ -3,7 +3,6 @@ package com.forge.workout.ui.screens.nutrition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -15,16 +14,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.FactCheck
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BakeryDining
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Scale
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +56,7 @@ import com.forge.workout.nutrition.model.RecipeDraft
 import com.forge.workout.nutrition.model.RecipeIngredientDraft
 import com.forge.workout.nutrition.model.RecipeValidation
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.numberFormat
 import com.forge.workout.viewmodel.RecipeEditorViewModel
@@ -109,7 +109,9 @@ fun RecipeBuilderScreen(
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(stringResource(R.string.recipe_title), onBack = onBack)
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ForgeLoading(stringResource(R.string.nutrition_premium_loading))
+                }
                 state.error -> EmptyState(stringResource(R.string.food_details_error_title),
                     stringResource(R.string.recipe_editor_error), Icons.Rounded.Restaurant,
                     viewModel::reload, stringResource(R.string.food_details_retry))
@@ -117,7 +119,8 @@ fun RecipeBuilderScreen(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item(key = "identity", contentType = "form") {
-                        RecipeCard {
+                        NutritionCard(emphasized = true) {
+                            NutritionSection(stringResource(R.string.nutrition_premium_recipe_identity), Icons.Rounded.BakeryDining)
                             RecipeField(draft.name, { value -> update { copy(name = value) } },
                                 stringResource(R.string.recipe_name), "recipe_name", "name" in state.invalidFields,
                                 R.string.recipe_name_error, busy)
@@ -129,8 +132,8 @@ fun RecipeBuilderScreen(
                         }
                     }
                     item(key = "ingredients_heading", contentType = "action") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(stringResource(R.string.recipe_ingredients), style = MaterialTheme.typography.titleLarge)
+                        NutritionCard {
+                            NutritionSection(stringResource(R.string.recipe_ingredients), Icons.Rounded.Restaurant)
                             OutlinedButton(onClick = onAddIngredient, enabled = !busy,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("recipe_add_ingredient")) {
                                 Icon(Icons.Rounded.Add, null, Modifier.size(20.dp))
@@ -151,8 +154,8 @@ fun RecipeBuilderScreen(
                             onMove = { offset -> update { moved(ingredient.key, offset) } })
                     }
                     item(key = "finished_weight", contentType = "form") {
-                        RecipeCard {
-                            Text(stringResource(R.string.recipe_cooked_weight_title), style = MaterialTheme.typography.titleMedium)
+                        NutritionCard {
+                            NutritionSection(stringResource(R.string.recipe_cooked_weight_title), Icons.Rounded.Scale)
                             RecipeField(draft.cookedWeightGrams, { value -> update { copy(cookedWeightGrams = value) } },
                                 stringResource(R.string.recipe_cooked_weight), "recipe_cooked_weight", "cookedWeightGrams" in state.invalidFields,
                                 R.string.recipe_cooked_weight_error, busy, numeric = true)
@@ -175,9 +178,7 @@ fun RecipeBuilderScreen(
                             if ("draft" in state.invalidFields) RecipeError(R.string.recipe_size_error)
                             Button(onClick = { viewModel.validatedRecipe()?.let(onSave) }, enabled = !busy,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("recipe_save")) {
-                                if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary)
-                                else Text(stringResource(R.string.recipe_save))
+                                NutritionSaveLabel(stringResource(R.string.recipe_save), busy)
                             }
                         }
                     }
@@ -206,8 +207,8 @@ private fun IngredientCard(
     onRemove: () -> Unit,
     onMove: (Int) -> Unit,
 ) {
-    RecipeCard(Modifier.testTag("recipe_ingredient_${ingredient.key}")) {
-        Text(ingredient.snapshot.name, style = MaterialTheme.typography.titleMedium)
+    NutritionCard(Modifier.testTag("recipe_ingredient_${ingredient.key}")) {
+        NutritionSection(ingredient.snapshot.name, Icons.Rounded.Restaurant)
         if (ingredient.snapshot.brand.isNotBlank()) Text(ingredient.snapshot.brand, style = MaterialTheme.typography.bodySmall)
         if (ingredient.snapshot.source.isNotBlank()) Text(ingredient.snapshot.source, style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -236,17 +237,10 @@ private fun IngredientCard(
 }
 
 @Composable
-private fun RecipeCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-    }
-}
-
-@Composable
 private fun RecipeField(value: String, onValue: (String) -> Unit, label: String, tag: String,
     invalid: Boolean, error: Int, busy: Boolean, numeric: Boolean = false) {
     OutlinedTextField(value, onValue, Modifier.fillMaxWidth().testTag(tag), label = { Text(label) }, singleLine = true,
-        enabled = !busy, isError = invalid, shape = RoundedCornerShape(16.dp),
+        enabled = !busy, isError = invalid, shape = MaterialTheme.shapes.medium,
         keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Decimal else KeyboardType.Text,
             imeAction = ImeAction.Next), supportingText = if (invalid) ({ Text(stringResource(error)) }) else null)
 }
@@ -260,8 +254,8 @@ private fun RecipeError(resource: Int) {
 private fun NutritionPreview(title: Int, nutrients: List<NutrientValue>?, tag: String, macroTag: String) {
     val codes = remember { listOf(NutrientCodes.ENERGY, NutrientCodes.PROTEIN, NutrientCodes.CARBS, NutrientCodes.FAT) }
     val values = remember(nutrients) { nutrients?.associateBy { it.code } }
-    RecipeCard(Modifier.testTag(tag)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+    NutritionCard(Modifier.testTag(tag)) {
+        NutritionSection(stringResource(title), Icons.AutoMirrored.Rounded.FactCheck)
         codes.forEach { code ->
             val nutrient = values?.get(code)
             val value = when {

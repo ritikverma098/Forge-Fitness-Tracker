@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="premium_training">Training</string>
+    <string name="premium_training_load_error">Training could not be loaded</string>
+    <string name="premium_quick_actions">Quick actions</string>
+    <string name="premium_log_food">Open nutrition diary</string>
+    <string name="premium_view_progress">View progress</string>
+    <string name="premium_weekly_activity">Weekly activity</string>
+    <plurals name="premium_sessions_this_week">
+        <item quantity="one">%1$d workout this week</item>
+        <item quantity="other">%1$d workouts this week</item>
+    </plurals>
+    <plurals name="premium_lifetime_sessions">
+        <item quantity="one">%1$d workout completed all time</item>
+        <item quantity="other">%1$d workouts completed all time</item>
+    </plurals>
+    <plurals name="premium_day_activity">
+        <item quantity="one">%1$s: %2$d workout completed</item>
+        <item quantity="other">%1$s: %2$d workouts completed</item>
+    </plurals>
+    <string name="premium_nutrition_today">Nutrition today</string>
+    <string name="premium_partial_total">Reported values only</string>
+    <string name="premium_calorie_goal_unset">Calorie goal not set</string>
+    <string name="premium_daily_budget">Daily budget · %1$s kcal</string>
+    <string name="premium_partial_value">%1$s reported</string>
+    <string name="premium_macro_target">%1$s / %2$s g</string>
+    <string name="premium_macro_line">%1$s · %2$s</string>
+</resources>

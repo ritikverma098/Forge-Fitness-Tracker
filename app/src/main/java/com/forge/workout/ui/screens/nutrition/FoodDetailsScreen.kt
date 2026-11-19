@@ -3,32 +3,34 @@ package com.forge.workout.ui.screens.nutrition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Scale
+import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -36,11 +38,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,7 +61,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,8 @@ import com.forge.workout.nutrition.model.NutrientCodes
 import com.forge.workout.nutrition.model.NutrientValue
 import com.forge.workout.nutrition.model.NutritionMath
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.numberFormat
 import com.forge.workout.viewmodel.CatalogViewModel
@@ -127,7 +130,7 @@ fun FoodDetailsScreen(
         feedback?.let { message -> snackbar.showSnackbar(message); onFeedbackHandled() }
     }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(title ?: stringResource(R.string.food_details_title), onBack = onBack, actions = {
                 if (state.detail != null && !state.loading && !state.error) {
                     if (onToggleFavorite != null) IconToggleButton(checked = state.favorite,
@@ -151,10 +154,7 @@ fun FoodDetailsScreen(
             })
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        CircularProgressIndicator()
-                        Text(stringResource(R.string.food_details_loading))
-                    }
+                    ForgeLoading(stringResource(R.string.food_details_loading))
                 }
                 state.error -> EmptyState(stringResource(R.string.food_details_error_title),
                     stringResource(R.string.food_details_error_description), Icons.Rounded.Restaurant,
@@ -171,6 +171,7 @@ fun FoodDetailsScreen(
         text = { Text(stringResource(R.string.food_delete_description)) },
         confirmButton = {
             TextButton(onClick = { if (!confirmBusy) { showDelete = false; onDelete() } }, enabled = !confirmBusy,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.testTag("food_delete_confirm")) { Text(stringResource(R.string.food_delete_action)) }
         }, dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } })
 }
@@ -226,8 +227,8 @@ private fun FoodDetailsContent(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "identity", contentType = "card") {
-            FoodDetailsCard {
-                Text(food.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            NutritionCard(emphasized = true) {
+                NutritionSection(food.name, foodIcon(food))
                 Text(stringResource(when (food.sourceType) {
                     FoodSourceType.REFERENCE -> if (food.brand.isBlank()) R.string.food_reference else R.string.food_branded_reference
                     FoodSourceType.CUSTOM -> R.string.food_custom
@@ -239,16 +240,19 @@ private fun FoodDetailsContent(
             }
         }
         if (extraContent != null) item(key = "destination", contentType = "controls") {
-            FoodDetailsCard { extraContent() }
+            NutritionCard {
+                NutritionSection(stringResource(R.string.nutrition_premium_diary_destination), Icons.Rounded.CalendarMonth)
+                extraContent()
+            }
         }
         item(key = "serving", contentType = "card") {
-            FoodDetailsCard {
-                Text(stringResource(R.string.food_serving_title), style = MaterialTheme.typography.titleMedium)
+            NutritionCard {
+                NutritionSection(stringResource(R.string.food_serving_title), Icons.Rounded.Scale)
                 LazyRow(Modifier.fillMaxWidth().testTag("food_serving_choices"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(choices, key = { it.id }) { option ->
-                        FilterChip(selected = option.id == choice.id,
+                        NutritionFilterChip(selected = option.id == choice.id,
                             onClick = { if (option.id != choiceId) { choiceId = option.id; amount = inputAmount(option.suggestedQuantity) } },
-                            label = { Text(servingLabel(option)) }, modifier = Modifier.testTag("food_serving_${option.id}"))
+                            label = servingLabel(option), modifier = Modifier.testTag("food_serving_${option.id}"))
                     }
                 }
                 OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth().testTag("food_quantity"),
@@ -256,7 +260,7 @@ private fun FoodDetailsContent(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                     isError = !valid, supportingText = {
                         if (!valid) Text(stringResource(if (factor != null && values == null) R.string.food_amount_too_large else R.string.food_quantity_error))
-                    }, shape = RoundedCornerShape(18.dp))
+                    }, shape = MaterialTheme.shapes.medium)
                 if (valid) {
                     val servingQuantity = requireNotNull(quantity)
                     val selection = if (selectedPortion == null) basisLabel(servingQuantity, choice.unit)
@@ -278,10 +282,9 @@ private fun FoodDetailsContent(
             }
         }
         item(key = "macros", contentType = "card") {
-            FoodDetailsCard {
-                Text(stringResource(R.string.food_nutrition_for_serving), style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.food_energy), style = MaterialTheme.typography.titleMedium)
+            NutritionCard {
+                NutritionSection(stringResource(R.string.food_nutrition_for_serving), Icons.Rounded.LocalFireDepartment,
+                    stringResource(R.string.food_energy))
                 Text(nutrientValue(nutrients[NutrientCodes.ENERGY], valid), Modifier.testTag("food_macro_energy"),
                     style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                 HorizontalDivider()
@@ -295,22 +298,18 @@ private fun FoodDetailsContent(
         if (onConfirm != null) item(key = "confirm", contentType = "action") {
             Button(onClick = { if (valid && !confirmBusy) onConfirm(snapshot, choice, requireNotNull(quantity), requireNotNull(factor)) },
                 enabled = valid && !confirmBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("food_confirm")) {
-                if (confirmBusy) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.size(8.dp))
-                }
-                Text(confirmLabel ?: stringResource(R.string.food_confirm_serving))
+                NutritionSaveLabel(confirmLabel ?: stringResource(R.string.food_confirm_serving), confirmBusy)
             }
         }
         if (groups.isNotEmpty()) item(key = "more_heading", contentType = "heading") {
-            Text(stringResource(R.string.food_more_nutrients), style = MaterialTheme.typography.titleLarge)
+            ForgeSectionHeading(stringResource(R.string.food_more_nutrients))
         }
         groups.forEach { (group, rows) ->
             val expanded = group.name in expandedGroups
             item(key = "group_${group.name}", contentType = "heading") {
                 val title = stringResource(group.title)
                 val action = stringResource(if (expanded) R.string.food_collapse_nutrients else R.string.food_expand_nutrients, title)
-                TextButton(onClick = {
+                OutlinedButton(onClick = {
                     expandedGroups = if (expanded) expandedGroups - group.name else expandedGroups + group.name
                 }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("food_group_${group.name}")
                     .semantics { contentDescription = action }) {
@@ -327,14 +326,14 @@ private fun FoodDetailsContent(
             }
         }
         if (food.notes.isNotBlank()) item(key = "notes", contentType = "card") {
-            FoodDetailsCard {
+            NutritionCard {
                 Text(stringResource(R.string.food_notes), style = MaterialTheme.typography.titleMedium)
                 Text(food.notes, style = MaterialTheme.typography.bodyMedium)
             }
         }
         if (food.source.isNotBlank() || food.sourceId != null || food.sourceUrl != null) item(key = "source", contentType = "card") {
-            FoodDetailsCard {
-                Text(stringResource(R.string.food_source_title), style = MaterialTheme.typography.titleMedium)
+            NutritionCard {
+                NutritionSection(stringResource(R.string.food_source_title), Icons.AutoMirrored.Rounded.OpenInNew)
                 if (food.source.isNotBlank()) Text(food.source, style = MaterialTheme.typography.bodyMedium)
                 food.sourceId?.let { Text(stringResource(R.string.food_source_id, it), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -349,13 +348,6 @@ private fun FoodDetailsContent(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun FoodDetailsCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 

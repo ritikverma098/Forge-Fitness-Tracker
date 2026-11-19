@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nutrition_premium_macros">Macronutrients</string>
+    <string name="nutrition_premium_meals">Meals</string>
+    <string name="nutrition_premium_goal_progress">%1$s of daily calorie budget</string>
+    <string name="nutrition_premium_progress_percent">%1$d%%</string>
+    <string name="nutrition_premium_loading">Loading nutrition…</string>
+    <string name="nutrition_premium_food_basis">Nutrition per %1$s</string>
+    <string name="nutrition_premium_saving">Saving…</string>
+    <string name="nutrition_premium_diary_destination">Diary destination</string>
+    <string name="nutrition_premium_food_identity">Food details</string>
+    <string name="nutrition_premium_recipe_identity">Recipe details</string>
+    <string name="nutrition_premium_new_weight">Record weight</string>
+    <string name="nutrition_premium_manual_energy">Manual override</string>
+</resources>

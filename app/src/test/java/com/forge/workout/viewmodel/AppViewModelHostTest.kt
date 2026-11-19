@@ -32,6 +32,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.util.UUID
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -98,6 +99,25 @@ class AppViewModelHostTest {
         assertEquals(AppEvent.OpenWorkout(1), model.events.first())
         assertEquals(AppEvent.GoHome, model.events.first())
         model.flush()
+    }
+
+    @Test fun `failed setup exposes a retry and later loads the library`() = runTest(dispatcher) {
+        val delegate = RoomWorkoutRepository(database)
+        var calls = 0
+        val failsOnce = object : WorkoutRepository by delegate {
+            override suspend fun ensureSeeded() {
+                if (++calls == 1) throw IOException("Transient failure")
+                delegate.ensureSeeded()
+            }
+        }
+        val retryable = AppViewModel(failsOnce, preferences, { "Training storage unavailable" }, { "Workout" })
+        val failure = retryable.state.first { it.startupError != null }
+        assertFalse(failure.ready)
+        assertEquals("Training storage unavailable", failure.startupError)
+        retryable.retryStartup()
+        val loaded = retryable.state.first { it.ready }
+        assertEquals(null, loaded.startupError)
+        assertEquals(2, calls)
     }
 
     private class HeldStartRepository(private val delegate: WorkoutRepository) : WorkoutRepository by delegate {

@@ -9,9 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
@@ -20,7 +19,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,13 +33,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.model.WorkoutDetail
 import com.forge.workout.preferences.WeightUnit
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgeSearchField
+import com.forge.workout.ui.components.ForgeSectionHeading
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.WorkoutCard
 import com.forge.workout.viewmodel.HistoryViewModel
@@ -66,18 +66,11 @@ fun HistoryScreen(workouts: List<WorkoutDetail>, weightUnit: WeightUnit, viewMod
                 }
             }
         })
-        OutlinedTextField(
+        ForgeSearchField(
             value = filters.name,
             onValueChange = viewModel::setName,
-            placeholder = { Text(stringResource(R.string.history_filter_search)) },
-            leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            trailingIcon = {
-                if (filters.name.isNotEmpty()) IconButton(onClick = { viewModel.setName("") }) {
-                    Icon(Icons.Rounded.Close, stringResource(R.string.history_filter_clear_search))
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(20.dp),
+            placeholder = stringResource(R.string.history_filter_search),
+            clearDescription = stringResource(R.string.history_filter_clear_search),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("history_name_search"),
         )
         if (filters.hasFilters) {
@@ -105,19 +98,19 @@ fun HistoryScreen(workouts: List<WorkoutDetail>, weightUnit: WeightUnit, viewMod
                 }
             }
             state.grouped.forEach { (date, dayWorkouts) ->
-                item(key = "day-$date") {
-                    Text(
-                        when (date) {
-                            today -> stringResource(R.string.history_today)
-                            today.minusDays(1) -> stringResource(R.string.history_yesterday)
-                            else -> date.format(dateFormatter)
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                item(key = "day-$date", contentType = "date") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ForgeIconTile(Icons.Rounded.CalendarMonth)
+                        ForgeSectionHeading(
+                            when (date) {
+                                today -> stringResource(R.string.history_today)
+                                today.minusDays(1) -> stringResource(R.string.history_yesterday)
+                                else -> date.format(dateFormatter)
+                            }, Modifier.weight(1f),
+                        )
+                    }
                 }
-                items(dayWorkouts, key = { it.workout.id }) { detail ->
+                items(dayWorkouts, key = { it.workout.id }, contentType = { "workout" }) { detail ->
                     WorkoutCard(detail, weightUnit) { onOpen(detail.workout.id) }
                 }
             }

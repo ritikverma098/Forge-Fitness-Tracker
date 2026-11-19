@@ -2,11 +2,16 @@ package com.forge.workout.ui.screens.settings
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,14 +49,18 @@ internal fun UpdateSettings(updates: UpdateViewModel, enabled: Boolean, onCheck:
         return !linkFailed
     }
 
-    Text(stringResource(R.string.update_installed_version, BuildConfig.VERSION_NAME),
-        style = MaterialTheme.typography.titleSmall)
-    Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodyMedium)
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
+        Text(stringResource(R.string.update_installed_version, BuildConfig.VERSION_NAME),
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge)
+    }
+    Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
     OutlinedButton(onClick = onCheck, enabled = enabled && !state.checking, modifier = Modifier.fillMaxWidth()) {
         if (state.checking) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(8.dp))
-        }
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else Icon(Icons.Rounded.Sync, null, Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
         Text(stringResource(if (state.checking) R.string.update_checking else R.string.update_check))
     }
     val result = state.manualResult

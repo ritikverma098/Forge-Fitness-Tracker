@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,9 +16,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Stable
@@ -76,15 +84,50 @@ internal fun PersistentTabBar(
 
 @Composable
 private fun RetainedNavigationBar(route: String, onOpenTab: (String) -> Unit, onMeasured: (androidx.compose.ui.unit.IntSize) -> Unit) {
-    NavigationBar(
+    val colors = MaterialTheme.colorScheme
+    val windowWidth = LocalWindowInfo.current.containerSize.width
+    val compactLabels = with(LocalDensity.current) { windowWidth.toDp().value / fontScale < 280f }
+    Surface(
         modifier = Modifier.testTag("forge_bottom_navigation").onSizeChanged(onMeasured),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        windowInsets = WindowInsets(0, 0, 0, 0),
+        color = colors.surfaceContainerLowest,
     ) {
-        destinations.forEach { destination ->
-            NavigationBarItem(selected = route == destination.route, onClick = { onOpenTab(destination.route) },
-                icon = { Icon(destination.icon, stringResource(destination.label)) },
-                label = { Text(stringResource(destination.label), maxLines = 1) })
+        Column {
+            HorizontalDivider(color = colors.outlineVariant)
+            Row(Modifier.fillMaxWidth().selectableGroup()) {
+                destinations.forEach { destination ->
+                    val active = route == destination.route
+                    val label = stringResource(destination.label)
+                    val tint = if (active) colors.primary else colors.onSurfaceVariant
+                    Column(
+                        Modifier.weight(1f).heightIn(min = if (compactLabels) 48.dp else 62.dp)
+                            .selectable(selected = active, onClick = { onOpenTab(destination.route) }, role = Role.Tab),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(Modifier.fillMaxWidth(.62f).height(2.dp)
+                            .background(if (active) colors.primary else androidx.compose.ui.graphics.Color.Transparent))
+                        Spacer(Modifier.height(8.dp))
+                        Icon(destination.icon, label.takeIf { compactLabels }, Modifier.size(23.dp), tint = tint)
+                        if (!compactLabels) Text(
+                            label, Modifier.padding(horizontal = 2.dp, vertical = 4.dp), color = tint,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (compactLabels) destinations.firstOrNull { it.route == route }?.let { selected ->
+                Text(
+                    stringResource(selected.label),
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clearAndSetSemantics {},
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.primary,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }

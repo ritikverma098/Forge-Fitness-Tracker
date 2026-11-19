@@ -2,9 +2,9 @@ package com.forge.workout.ui.screens.nutrition
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +21,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.forge.workout.R
 import com.forge.workout.nutrition.model.NutritionSettingsEntity
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeLoading
+import com.forge.workout.ui.components.ForgeIconTile
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.viewmodel.EnergySettingsDraft
 import com.forge.workout.viewmodel.EnergySettingsViewModel
@@ -51,15 +53,18 @@ fun EnergySettingsScreen(
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             ScreenHeader(stringResource(R.string.energy_settings), onBack = onBack)
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ForgeLoading(stringResource(R.string.nutrition_premium_loading))
+                }
                 state.error -> EmptyState(stringResource(R.string.energy_title), stringResource(R.string.energy_error), Icons.Rounded.FitnessCenter,
                     viewModel::reload, stringResource(R.string.nutrition_retry))
                 else -> LazyColumn(Modifier.weight(1f).testTag("energy_settings_list"),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item(key = "budget", contentType = "card") {
-                        NutritionCard {
+                        NutritionCard(emphasized = true) {
                             val includeLabel = stringResource(R.string.energy_include)
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ForgeIconTile(Icons.Rounded.Bolt, highlighted = true)
                                 Text(includeLabel, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                                 Switch(draft.includeWorkoutCalories, onCheckedChange = { value -> update { copy(includeWorkoutCalories = value) } },
                                     enabled = !busy, modifier = Modifier.testTag("energy_settings_include").semantics { contentDescription = includeLabel })
@@ -70,7 +75,7 @@ fun EnergySettingsScreen(
                     }
                     item(key = "defaults", contentType = "form") {
                         NutritionCard {
-                            Text(stringResource(R.string.energy_defaults), style = MaterialTheme.typography.titleLarge)
+                            NutritionSection(stringResource(R.string.energy_defaults), Icons.Rounded.FitnessCenter)
                             ActivityChoices(draft.preset, !busy) { preset -> update { copy(preset = preset) } }
                             EnergyNumericField(draft.activePercent, { value -> update { copy(activePercent = value) } },
                                 R.string.energy_active_percent, "energy_settings_active_percent", "activePercent" in state.invalidFields,
@@ -83,8 +88,7 @@ fun EnergySettingsScreen(
                     item(key = "save", contentType = "action") {
                         Button(onClick = { viewModel.validatedSettings()?.let(onSave) }, enabled = !busy,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("energy_settings_save")) {
-                            if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            else Text(stringResource(R.string.energy_save_settings))
+                            NutritionSaveLabel(stringResource(R.string.energy_save_settings), busy)
                         }
                     }
                 }
@@ -96,7 +100,7 @@ fun EnergySettingsScreen(
 @Composable
 internal fun EnergyNumericField(value: String, onValue: (String) -> Unit, label: Int, tag: String, invalid: Boolean, error: Int, busy: Boolean) {
     OutlinedTextField(value, onValue, Modifier.fillMaxWidth().testTag(tag), label = { Text(stringResource(label)) },
-        enabled = !busy, singleLine = true, isError = invalid, shape = RoundedCornerShape(16.dp),
+        enabled = !busy, singleLine = true, isError = invalid, shape = MaterialTheme.shapes.medium,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
         supportingText = if (invalid) ({ Text(stringResource(error)) }) else null)
 }

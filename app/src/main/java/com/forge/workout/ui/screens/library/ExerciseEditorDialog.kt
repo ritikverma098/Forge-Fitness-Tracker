@@ -4,16 +4,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,13 +63,14 @@ internal fun ExerciseEditorDialog(
     }
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
+        icon = { ExerciseThumbnail(primary) },
         title = { Text(stringResource(if (exercise == null) R.string.library_new_exercise else R.string.library_edit_exercise)) },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                if (serverError != null) Text(serverError, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                if (serverError != null) Text(serverError, color = MaterialTheme.colorScheme.error)
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -74,9 +78,8 @@ internal fun ExerciseEditorDialog(
                     singleLine = true,
                     enabled = !busy,
                     isError = submitted && nameError != null,
-                    supportingText = {
-                        if (submitted && nameError != null) Text(stringResource(nameError))
-                    },
+                    supportingText = if (submitted && nameError != null) ({ Text(stringResource(nameError)) }) else null,
+                    shape = MaterialTheme.shapes.medium,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -115,16 +118,15 @@ internal fun ExerciseEditorDialog(
                     maxLines = 4,
                     enabled = !busy,
                     isError = submitted && notes.length > 5000,
-                    supportingText = {
-                        if (submitted && notes.length > 5000) Text(stringResource(R.string.library_notes_too_long))
-                    },
+                    supportingText = if (submitted && notes.length > 5000) ({ Text(stringResource(R.string.library_notes_too_long)) }) else null,
+                    shape = MaterialTheme.shapes.medium,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 enabled = !busy,
                 onClick = {
                     submitted = true
@@ -142,7 +144,7 @@ internal fun ExerciseEditorDialog(
                     )
                 },
             ) {
-                if (busy) CircularProgressIndicator(modifier = Modifier.heightIn(max = 20.dp), strokeWidth = 2.dp)
+                if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.library_save))
             }
         },
@@ -169,6 +171,7 @@ internal fun <T> EnumSelectionField(
             enabled = enabled,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            shape = MaterialTheme.shapes.medium,
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

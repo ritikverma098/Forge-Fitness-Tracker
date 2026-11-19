@@ -5,17 +5,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,7 +34,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -42,9 +51,11 @@ import com.forge.workout.R
 import com.forge.workout.model.Exercise
 import com.forge.workout.model.MuscleGroup
 import com.forge.workout.model.RoutineDetail
+import com.forge.workout.ui.components.ForgeIconTile
 import com.forge.workout.ui.components.muscleLabel
 import com.forge.workout.ui.screens.library.EnumSelectionField
 import com.forge.workout.ui.screens.library.ExerciseEditorDialog
+import com.forge.workout.ui.screens.library.ExerciseThumbnail
 import com.forge.workout.viewmodel.LibraryViewModel
 import kotlinx.coroutines.flow.combine
 import java.util.UUID
@@ -54,6 +65,7 @@ internal fun RoutineNameDialog(
     routine: RoutineDetail?,
     routines: List<RoutineDetail>,
     busy: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
 ) {
@@ -67,24 +79,30 @@ internal fun RoutineNameDialog(
     }
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
+        icon = { ForgeIconTile(Icons.Outlined.FitnessCenter, highlighted = true) },
         title = { Text(stringResource(if (routine == null) R.string.routines_create else R.string.routines_rename)) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(stringResource(R.string.routines_name)) },
-                singleLine = true,
-                enabled = !busy,
-                isError = submitted && nameError != null,
-                supportingText = { if (submitted && nameError != null) Text(stringResource(nameError)) },
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth().testTag("routine_name"),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.routines_name)) },
+                    singleLine = true,
+                    enabled = !busy,
+                    isError = submitted && nameError != null,
+                    supportingText = if (submitted && nameError != null) ({ Text(stringResource(nameError)) }) else null,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth().testTag("routine_name"),
+                    shape = MaterialTheme.shapes.medium,
+                )
+            }
         },
         confirmButton = {
-            TextButton(enabled = !busy, modifier = Modifier.testTag("routine_save"),
+            Button(enabled = !busy, modifier = Modifier.testTag("routine_save"),
                 onClick = { submitted = true; if (nameError == null) onSave(name.trim()) }) {
-                Text(stringResource(R.string.routines_save))
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.routines_save))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.library_cancel)) } },
@@ -96,6 +114,7 @@ internal fun RoutineExercisePicker(
     exercises: List<Exercise>,
     addedIds: Set<Long>,
     busy: Boolean,
+    addError: String?,
     libraryViewModel: LibraryViewModel,
     onDismiss: () -> Unit,
     onPick: (Exercise) -> Unit,
@@ -169,7 +188,8 @@ internal fun RoutineExercisePicker(
         onDismissRequest = { if (!operationBusy) { libraryViewModel.clearError(); onDismiss() } },
         title = { Text(stringResource(R.string.routines_add_exercise)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val focusManager = LocalFocusManager.current
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -177,7 +197,10 @@ internal fun RoutineExercisePicker(
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     singleLine = true,
                     enabled = !operationBusy,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().testTag("routine_exercise_search"),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                 )
                 Box(Modifier.testTag("routine_exercise_muscle")) {
                     EnumSelectionField(
@@ -189,24 +212,25 @@ internal fun RoutineExercisePicker(
                         enabled = !operationBusy,
                     )
                 }
-                TextButton(
+                FilledTonalButton(
                     onClick = { editorError = null; libraryViewModel.clearError(); creating = true },
                     enabled = !operationBusy,
-                    modifier = Modifier.testTag("routine_create_exercise"),
+                    modifier = Modifier.fillMaxWidth().testTag("routine_create_exercise"),
                 ) {
                     Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
                     Text(stringResource(R.string.library_new_exercise))
                 }
-                if (editorError != null) Text(editorError.orEmpty(), color = MaterialTheme.colorScheme.error)
-                LazyColumn(Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 320.dp)
-                    .weight(1f, fill = false).testTag("routine_exercise_results")) {
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                (editorError ?: addError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 340.dp).weight(1f, fill = false)
+                    .testTag("routine_exercise_results"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     created?.let { exercise ->
                         item(key = "created_${exercise.id}") {
                             RoutineExerciseOption(exercise, available = exercise.id !in addedIds,
                                 enabled = !operationBusy, newlyCreated = true, onPick = onPick)
                         }
                     }
-                    if (filtered.isEmpty() && created == null) item {
+                    if (filtered.isEmpty() && created == null) item(key = "empty") {
                         Text(stringResource(R.string.library_no_results_title), modifier = Modifier.padding(16.dp))
                     }
                     items(filtered, key = { it.id }) { exercise ->
@@ -230,20 +254,25 @@ private fun RoutineExerciseOption(
     newlyCreated: Boolean,
     onPick: (Exercise) -> Unit,
 ) {
-    val highlight = if (newlyCreated) Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp))
-        else Modifier
-    Column(
-        Modifier.fillMaxWidth().then(highlight)
+    val shape = MaterialTheme.shapes.medium
+    val colors = MaterialTheme.colorScheme
+    val background = if (newlyCreated) colors.primaryContainer else colors.surfaceContainerHigh
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(background)
             .testTag(if (newlyCreated) "routine_created_exercise_${exercise.id}" else "routine_exercise_${exercise.id}")
             .clickable(enabled = enabled && available) { onPick(exercise) }
-            .padding(vertical = 12.dp, horizontal = if (newlyCreated) 12.dp else 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (newlyCreated) Text(stringResource(R.string.routine_picker_just_created),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(exercise.name, style = MaterialTheme.typography.titleSmall,
-            color = if (available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(if (available) muscleLabel(exercise.primaryMuscleGroup) else stringResource(R.string.routines_already_added),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ExerciseThumbnail(exercise.primaryMuscleGroup)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (newlyCreated) Text(stringResource(R.string.routine_picker_just_created),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(exercise.name, style = MaterialTheme.typography.titleSmall,
+                color = if (available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (available) muscleLabel(exercise.primaryMuscleGroup) else stringResource(R.string.routines_already_added),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

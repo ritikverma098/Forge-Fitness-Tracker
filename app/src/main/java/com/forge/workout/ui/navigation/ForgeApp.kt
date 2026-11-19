@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
@@ -39,6 +40,7 @@ import com.forge.workout.backup.LocalBackupDocuments
 import com.forge.workout.backup.RestoreStartupState
 import com.forge.workout.utils.userMessage
 import com.forge.workout.ui.screens.home.HomeScreen
+import com.forge.workout.ui.screens.home.HomeNutritionOverview
 import com.forge.workout.ui.screens.history.*
 import com.forge.workout.ui.screens.progress.ProgressScreen
 import com.forge.workout.ui.screens.library.ExerciseLibraryScreen
@@ -51,6 +53,10 @@ import com.forge.workout.ui.theme.ForgeTheme
 import com.forge.workout.ui.components.UpdateAvailableDialog
 import com.forge.workout.ui.components.UpdateInstallerHost
 import com.forge.workout.ui.components.UpdateTransferDialog
+import com.forge.workout.ui.components.ForgeLoading
+import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.RestAlertPermissionHost
+import com.forge.workout.ui.components.visibleTransferAttempt
 import com.forge.workout.updates.ApkUpdateCoordinator
 import com.forge.workout.updates.AvailableUpdate
 import com.forge.workout.updates.UpdatePhase
@@ -62,7 +68,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.selects.select
+import java.time.LocalDate
 
 internal data class Destination(val route: String,val label: Int,val icon: ImageVector)
 internal val destinations = listOf(
@@ -82,8 +90,7 @@ internal val destinations = listOf(
                         Text(stringResource(R.string.restore_recovery_failed))
                         Button(onClick = application::retryStartup) { Text(stringResource(R.string.retry_failed_changes)) }
                     } else {
-                        CircularProgressIndicator()
-                        Text(stringResource(R.string.loading))
+                        ForgeLoading(stringResource(R.string.loading))
                     }
                 }
             }
@@ -220,11 +227,20 @@ internal val destinations = listOf(
         else -> false
     }
     val entryState = navigationEntry?.lifecycle?.currentStateFlow?.collectAsStateWithLifecycle()?.value
-    val safeForTransferUi = state.ready && workoutStarts == 0 &&
+    val foregroundReady = state.ready && workoutStarts == 0 &&
         !backupState.busy && backupState.pending == null &&
-        snackbar.currentSnackbarData == null && entryState == Lifecycle.State.RESUMED &&
-        allowsUpdateAt(navigationEntry, backupState.restoreGeneration)
+        snackbar.currentSnackbarData == null && entryState == Lifecycle.State.RESUMED
+    val safeForTransferUi = foregroundReady && allowsUpdateAt(navigationEntry, backupState.restoreGeneration)
     val safeForUpdate = safeForTransferUi && state.activeWorkout == null
+    val updateOffer by remember(updates) { updates.state.map { it.dialog }.distinctUntilChanged() }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val transferAttempt by remember(downloads) {
+        downloads.state.map { it.visibleTransferAttempt() }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = null)
+    var hiddenTransferAttempt by rememberSaveable { mutableStateOf<String?>(null) }
+    val installerApproval by downloads.confirmation.collectAsStateWithLifecycle()
+    val blockingTransfer = installerApproval != null || transferAttempt != null && transferAttempt != hiddenTransferAttempt
+    val homeDate = remember { MutableStateFlow(LocalDate.now().toString()) }
     val mainDestination = destinations.any { it.route == navigationEntry?.destination?.route }
     val persistentTabBar = rememberPersistentTabBarState(if (state.ready) navigationEntry?.destination?.route else null)
     LaunchedEffect(appErrors, nav, requestedWorkoutDeletions) { appErrors.collect { event -> when(event) {
@@ -261,11 +277,33 @@ internal val destinations = listOf(
             detail.exercises.flatMap { it.sets }.map { it.id }.toSet()
         appViewModel.deleteWorkout(detail.workout.id)
     }
+    fun canInterruptHome(): Boolean {
+        val entry = nav.currentBackStackEntry
+        val backup = backupViewModel.state.value
+        val app = appViewModel.state.value
+        return entry != null && entry.destination.route == "home" && nav.canActFrom(entry) &&
+            app.ready && app.activeWorkout == null && appViewModel.workoutStarts.value == 0 &&
+            !backup.busy && backup.pending == null && snackbar.currentSnackbarData == null &&
+            updates.state.value.dialog == null && downloads.confirmation.value == null &&
+            downloads.state.value.let {
+                it.phase !in setOf(UpdatePhase.STAGING, UpdatePhase.HANDED_TO_INSTALLER, UpdatePhase.APPROVAL_READY) &&
+                    it.visibleTransferAttempt().let { attempt -> attempt == null || attempt == hiddenTransferAttempt }
+            }
+    }
     ForgeTheme(state.preferences.themeMode) {
-        UpdateInstallerHost(downloads, canLaunch = safeForUpdate)
-        ForgeUpdatePrompt(updates, downloads, safeForUpdate,
-            showTransfer = safeForTransferUi && (state.activeWorkout == null || navigationEntry?.destination?.route == "settings"),
+        RestAlertPermissionHost(
+            preferences = application.preferences,
+            canOfferStartup = foregroundReady && navigationEntry?.destination?.route == "home" &&
+                updateOffer == null && !blockingTransfer && canInterruptHome(),
+            stillSafeToOffer = ::canInterruptHome,
+        ) { permissionUiActive ->
+        UpdateInstallerHost(downloads, canLaunch = safeForUpdate && !permissionUiActive)
+        ForgeUpdatePrompt(updates, downloads, safeForUpdate && !permissionUiActive,
+            showTransfer = safeForTransferUi && !permissionUiActive &&
+                (state.activeWorkout == null || navigationEntry?.destination?.route == "settings"),
             settingsEntryId = navigationEntry?.takeIf { it.destination.route == "settings" }?.id,
+            hiddenTransferAttempt = hiddenTransferAttempt,
+            onHideTransfer = { hiddenTransferAttempt = it },
             onDownload = ::downloadUpdate) {
                 val entry = nav.currentBackStackEntry
                 val currentBackup = backupViewModel.state.value
@@ -279,7 +317,15 @@ internal val destinations = listOf(
         Scaffold(snackbarHost = { if (!mainDestination) SnackbarHost(snackbar) }) { padding ->
             Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize(),contentAlignment = Alignment.TopCenter) {
                 if(!state.ready) {
-                    Column(Modifier.align(Alignment.Center),horizontalAlignment = Alignment.CenterHorizontally,verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(); Text(stringResource(R.string.loading)) }
+                    val startupError = state.startupError
+                    if (startupError != null) {
+                        Box(Modifier.align(Alignment.Center).padding(20.dp)) {
+                            EmptyState(stringResource(R.string.premium_training_load_error), startupError,
+                                Icons.Rounded.ErrorOutline, appViewModel::retryStartup, stringResource(R.string.retry_failed_changes))
+                        }
+                    } else {
+                        ForgeLoading(stringResource(R.string.loading), Modifier.align(Alignment.Center))
+                    }
                 } else CompositionLocalProvider(LocalPersistentTabBar provides persistentTabBar) {
                 NavHost(navController = nav,startDestination = "home",modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth().testTag("forge_navigation_host"),
                     enterTransition = { fadeIn(tween(300)) }, exitTransition = { fadeOut(tween(300)) },
@@ -288,8 +334,30 @@ internal val destinations = listOf(
                     predictivePopEnterTransition = { _ -> fadeIn(tween(300)) },
                     predictivePopExitTransition = { _ -> fadeOut(tween(300)) }) {
                     composable("home") { backStack ->
+                        val homeNutrition: NutritionDashboardViewModel = viewModel(factory = viewModelFactory { initializer {
+                            NutritionDashboardViewModel(application.nutritionRepository, homeDate)
+                        } })
+                        val today by homeDate.collectAsStateWithLifecycle()
+                        LifecycleResumeEffect(homeDate) {
+                            homeDate.value = LocalDate.now().toString()
+                            onPauseOrDispose { }
+                        }
+                        fun openToday() {
+                            foodLogViewModel.selectDay(homeDate.value)
+                            openTab("nutrition")
+                        }
                         MainTab("home", snackbar) {
-                            HomeScreen(state.workouts,state.activeWorkout,state.preferences.weightUnit,{ appViewModel.start() },{ openTab("workout") },{ openTab("history") },{ openChild(backStack,"exercises") },{ openChild(backStack,"routines") },{ openChild(backStack,"settings") })
+                            HomeScreen(
+                                state.workouts, state.activeWorkout, state.preferences.weightUnit,
+                                onStart = { appViewModel.start() }, onResume = { openTab("workout") },
+                                onHistory = { openTab("history") }, onExercises = { openChild(backStack, "exercises") },
+                                onRoutines = { openChild(backStack, "routines") }, onSettings = { openChild(backStack, "settings") },
+                                today = LocalDate.parse(today), onNutrition = ::openToday, onProgress = { openTab("progress") },
+                                onWorkoutDetail = { openChild(backStack, "detail/$it") },
+                            ) {
+                                val nutrition by homeNutrition.state.collectAsStateWithLifecycle()
+                                HomeNutritionOverview(nutrition, ::openToday, homeNutrition::reload)
+                            }
                         }
                     }
                     composable("workout") { backStack ->
@@ -301,7 +369,9 @@ internal val destinations = listOf(
                         },{ state.activeWorkout?.let { detail -> scope.launch {
                             workoutViewModel.flush()
                             deleteWorkout(detail)
-                        } } },{ nav.popFrom(backStack) },appViewModel::setRest, { openChild(backStack,"exercises") }, reportEditorStateReset)
+                        } } },{ nav.popFrom(backStack) },appViewModel::setRest, { openChild(backStack,"exercises") }, reportEditorStateReset,
+                            routines = state.routines, onRoutineStart = { appViewModel.start(routineId = it) },
+                            onRecentWorkout = { openChild(backStack,"detail/$it") })
                         }
                     }
                     composable("nutrition") { backStack ->
@@ -384,13 +454,15 @@ internal val destinations = listOf(
                 }, modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 840.dp).fillMaxWidth())
             }
         }
+        }
     }
 }
 }
 
 @Composable
 private fun ForgeUpdatePrompt(updates: UpdateViewModel, downloads: ApkUpdateCoordinator, safe: Boolean,
-    showTransfer: Boolean, settingsEntryId: String?, onDownload: (AvailableUpdate) -> Unit, stillSafe: () -> Boolean) {
+    showTransfer: Boolean, settingsEntryId: String?, hiddenTransferAttempt: String?, onHideTransfer: (String) -> Unit,
+    onDownload: (AvailableUpdate) -> Unit, stillSafe: () -> Boolean) {
     val state by updates.state.collectAsStateWithLifecycle()
     val transfer by remember(downloads) {
         downloads.state.map { it.phase to it.verified }.distinctUntilChanged()
@@ -406,5 +478,6 @@ private fun ForgeUpdatePrompt(updates: UpdateViewModel, downloads: ApkUpdateCoor
             onLater = { updates.dismiss() }, onSkip = { updates.dismiss(skip = true) },
             onDownloaded = { onDownload(release) })
     }
-    UpdateTransferDialog(downloads, show = showTransfer && state.dialog == null, canInstall = safe)
+    UpdateTransferDialog(downloads, show = showTransfer && state.dialog == null, canInstall = safe,
+        hiddenAttempt = hiddenTransferAttempt, onHideAttempt = onHideTransfer)
 }

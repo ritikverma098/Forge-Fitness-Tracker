@@ -1,7 +1,6 @@
 package com.forge.workout.ui.screens.routines
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
@@ -24,8 +22,7 @@ import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,8 +55,11 @@ import com.forge.workout.model.Exercise
 import com.forge.workout.model.RoutineDetail
 import com.forge.workout.model.RoutineExerciseDetail
 import com.forge.workout.ui.components.EmptyState
+import com.forge.workout.ui.components.ForgeIconTile
+import com.forge.workout.ui.components.ForgePanel
 import com.forge.workout.ui.components.ScreenHeader
 import com.forge.workout.ui.components.muscleLabel
+import com.forge.workout.ui.screens.library.ExerciseThumbnail
 import com.forge.workout.viewmodel.RoutineViewModel
 import com.forge.workout.viewmodel.LibraryViewModel
 import kotlinx.coroutines.launch
@@ -78,6 +78,7 @@ fun RoutinesScreen(
     var renamingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var deletingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showPicker by rememberSaveable { mutableStateOf(false) }
+    var formError by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = routines.find { it.routine.id == selectedId }
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -92,8 +93,14 @@ fun RoutinesScreen(
     }
     LaunchedEffect(error) {
         error?.let {
-            snackbar.showSnackbar(it.ifBlank { genericError })
-            viewModel.clearError()
+            val message = it.ifBlank { genericError }
+            if (editingName || showPicker) {
+                formError = message
+                viewModel.clearError()
+            } else {
+                snackbar.showSnackbar(message)
+                viewModel.clearError()
+            }
         }
     }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -109,7 +116,7 @@ fun RoutinesScreen(
                 onBack = { if (selected != null) selectedId = null else onBack() },
                 actions = {
                     if (selected != null) {
-                        IconButton(onClick = { renamingId = selected.routine.id; editingName = true }, enabled = !busy,
+                        IconButton(onClick = { formError = null; renamingId = selected.routine.id; editingName = true }, enabled = !busy,
                             modifier = Modifier.testTag("routine_rename")) {
                             Icon(Icons.Outlined.Edit, stringResource(R.string.routines_rename))
                         }
@@ -117,7 +124,7 @@ fun RoutinesScreen(
                             Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.library_delete))
                         }
                     } else {
-                        IconButton(onClick = { renamingId = null; editingName = true }, enabled = !busy,
+                        FilledTonalIconButton(onClick = { formError = null; renamingId = null; editingName = true }, enabled = !busy,
                             modifier = Modifier.testTag("routine_create")) {
                             Icon(Icons.Outlined.Add, stringResource(R.string.routines_create))
                         }
@@ -125,38 +132,37 @@ fun RoutinesScreen(
                 },
             )
             if (selected == null) {
-                if (routines.isEmpty()) {
-                    EmptyState(
-                        title = stringResource(R.string.routines_empty_title),
-                        description = stringResource(R.string.routines_empty_body),
-                        icon = Icons.Outlined.FitnessCenter,
-                        onAction = { renamingId = null; editingName = true },
-                        actionLabel = stringResource(R.string.routines_create),
-                    )
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        items(routines, key = { it.routine.id }) { routine ->
-                            RoutineCard(
-                                detail = routine,
-                                onEdit = { selectedId = routine.routine.id },
-                                onDelete = { deletingId = routine.routine.id },
-                                onStart = { onStart(routine.routine.id) },
-                                enabled = !busy,
-                            )
-                        }
-                        item {
-                            OutlinedButton(
-                                onClick = { renamingId = null; editingName = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !busy,
-                                contentPadding = PaddingValues(16.dp),
-                            ) {
-                                Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
-                                Text(stringResource(R.string.routines_create))
-                            }
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (routines.isEmpty()) item(key = "empty") {
+                        EmptyState(
+                            title = stringResource(R.string.routines_empty_title),
+                            description = stringResource(R.string.routines_empty_body),
+                            icon = Icons.Outlined.FitnessCenter,
+                            onAction = if (busy) null else ({ formError = null; renamingId = null; editingName = true }),
+                            actionLabel = stringResource(R.string.routines_create),
+                        )
+                    }
+                    items(routines, key = { it.routine.id }) { routine ->
+                        RoutineCard(
+                            detail = routine,
+                            onEdit = { selectedId = routine.routine.id },
+                            onDelete = { deletingId = routine.routine.id },
+                            onStart = { onStart(routine.routine.id) },
+                            enabled = !busy,
+                        )
+                    }
+                    if (routines.isNotEmpty()) item {
+                        OutlinedButton(
+                            onClick = { formError = null; renamingId = null; editingName = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                            contentPadding = PaddingValues(16.dp),
+                        ) {
+                            Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
+                            Text(stringResource(R.string.routines_create))
                         }
                     }
                 }
@@ -164,7 +170,7 @@ fun RoutinesScreen(
                 RoutineEditorContent(
                     detail = selected,
                     enabled = !busy,
-                    onAdd = { showPicker = true },
+                    onAdd = { formError = null; showPicker = true },
                     onStart = { onStart(selected.routine.id) },
                     onMove = viewModel::moveExercise,
                     onRemove = viewModel::removeExercise,
@@ -177,8 +183,10 @@ fun RoutinesScreen(
             routine = routines.find { it.routine.id == renamingId },
             routines = routines,
             busy = busy,
+            error = formError,
             onDismiss = { editingName = false },
             onSave = { name ->
+                formError = null
                 viewModel.saveRoutine(renamingId, name) { id ->
                     selectedId = id
                     editingName = false
@@ -192,9 +200,11 @@ fun RoutinesScreen(
             exercises = exercises,
             addedIds = selected.exercises.map { it.exercise.id }.toSet(),
             busy = busy,
+            addError = formError,
             libraryViewModel = libraryViewModel,
             onDismiss = { showPicker = false },
             onPick = { exercise ->
+                formError = null
                 viewModel.addExercise(selected.routine.id, exercise.id) {
                     showPicker = false
                     scope.launch { snackbar.showSnackbar(addedMessage) }
@@ -229,20 +239,24 @@ fun RoutinesScreen(
 @Composable
 private fun RoutineCard(detail: RoutineDetail, onEdit: () -> Unit, onDelete: () -> Unit, onStart: () -> Unit, enabled: Boolean) {
     val separator = stringResource(R.string.routines_preview_separator)
-    Card(
-        modifier = Modifier.fillMaxWidth().testTag("routine_card_${detail.routine.id}").clickable(enabled = enabled, onClick = onEdit),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    val available = remember(detail.exercises) { detail.exercises.count { !it.exercise.archived } }
+    val preview = remember(detail.exercises, separator) {
+        detail.exercises.sortedBy { it.entry.orderIndex }.joinToString(separator) { it.exercise.name }
+    }
+    ForgePanel(
+        modifier = Modifier.fillMaxWidth().testTag("routine_card_${detail.routine.id}"),
+        onClick = onEdit.takeIf { enabled },
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ForgeIconTile(Icons.Outlined.FitnessCenter, highlighted = true)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(detail.routine.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
                         pluralStringResource(
                             R.plurals.routines_available_exercise_count,
-                            detail.exercises.count { !it.exercise.archived },
-                            detail.exercises.count { !it.exercise.archived },
+                            available,
+                            available,
                         ),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
@@ -254,14 +268,14 @@ private fun RoutineCard(detail: RoutineDetail, onEdit: () -> Unit, onDelete: () 
             }
             Text(
                 text = if (detail.exercises.isEmpty()) stringResource(R.string.routines_untitled_exercises)
-                    else detail.exercises.sortedBy { it.entry.orderIndex }.joinToString(separator) { it.exercise.name },
+                    else preview,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onStart, enabled = enabled && detail.exercises.any { !it.exercise.archived },
+                Button(onClick = onStart, enabled = enabled && available > 0,
                     modifier = Modifier.fillMaxWidth().testTag("routine_start_${detail.routine.id}")) {
                     Icon(Icons.Outlined.PlayArrow, null, Modifier.size(20.dp).padding(end = 4.dp))
                     Text(stringResource(R.string.routines_start))
@@ -282,7 +296,7 @@ private fun RoutineEditorContent(
     onMove: (Long, Int) -> Unit,
     onRemove: (Long) -> Unit,
 ) {
-    val entries = detail.exercises.sortedBy { it.entry.orderIndex }
+    val entries = remember(detail.exercises) { detail.exercises.sortedBy { it.entry.orderIndex } }
     LazyColumn(
         modifier = Modifier.testTag("routine_editor_list"),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
@@ -335,22 +349,19 @@ private fun RoutineExerciseRow(
     onMove: (Int) -> Unit,
     onRemove: () -> Unit,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
+    ForgePanel(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                     Text(
                         stringResource(R.string.routines_order, position),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                ExerciseThumbnail(item.exercise.primaryMuscleGroup)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(item.exercise.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(muscleLabel(item.exercise.primaryMuscleGroup), color = MaterialTheme.colorScheme.onSurfaceVariant)
