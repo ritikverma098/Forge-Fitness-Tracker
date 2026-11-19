@@ -1,14 +1,20 @@
-# Forge 1.4.3 verification
+# Forge 1.4.3 withdrawal and verification
+
+**Withdrawn.** Google Play Protect blocked installation of the published APK during post-publication verification. Forge 1.4.3 was removed from public distribution while the warning is investigated. Forge 1.4.2 remains the latest stable release. [Forge v1.4.2 release](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.2)
 
 Forge 1.4.3 refreshes the workout, nutrition and tracking screens with the Forge Dark design and updated Light and System themes. On Android 13 and newer, Home can offer rest-alert notification access on the first eligible startup. The user can decline and return to the permission controls later in Settings.
+
+## Post-publication verification
+
+- Source commit `8fd7d94c9278ad69ade1251c8412e5fec8178844`.
+- Withdrawn APK file SHA-256 `73ec6d3fab7bfbfba3976e3b21298399e91f4608b40491f72b81b9b6c66548fb`. A direct download from GitHub matched the verified production APK.
+- On Android 17, Forge 1.4.2 detected the release and handed the verified APK to Android's installer. The Play Protect scan was approved, then Play Protect blocked the installation. Forge 1.4.2 remained installed. Post-install cleanup could not be verified for this public update attempt.
 
 ## Compatibility and signing
 
 The package is `com.forge.workout`, version `1.4.3` (code `12`), with Android 8.0/API 26 as the minimum and API 37 as the target. Room schema 4 and portable backup format 3 are unchanged. The production certificate SHA-256 remains `7845655dd1614ae614f9cf0b1386f1c215fe3a8b96b0c16415116460cb425019`.
 
-Production-signed 1.4.2 installations can update in place. Development-signed installations need the one-time portable backup, reinstall and restore procedure. [Signing and migration instructions](signing.md)
-
-The release notes identify the source commit, GitHub Actions run and complete-file APK SHA-256. The APK checksum identifies the downloaded bytes. The certificate fingerprint identifies the signer. [Forge v1.4.3 release](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.3)
+The local compatibility tests demonstrated in-place installation with the same production certificate as 1.4.2. The subsequent Play Protect block occurred during verification of public update delivery. [Signing and migration instructions for the stable release](signing.md)
 
 ## Local verification
 

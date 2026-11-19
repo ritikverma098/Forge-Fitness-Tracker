@@ -18,7 +18,7 @@ These describe implemented features and technologies. GitHub allows up to 20 top
 
 Create a **1280 × 640 PNG under 1 MB** with Forge's existing charcoal background, lime accent and original project mark. Use the headline **“Your workouts. Your nutrition. On your phone.”**, the subline **“Offline tracking for Android 8.0+”**, and genuine Home and Nutrition screenshots. Keep the text large and leave space around the edges for different social crops. Do not add ratings, user counts, testimonials, store badges or imagined app screens.
 
-The Forge 1.4.3 README and site use genuine app screenshots captured on an Android emulator with synthetic test records. Keep that provenance visible when selecting screenshots for the social preview.
+The existing screenshots were captured on a Forge 1.3.0 Android 17 emulator with synthetic QA data; their training/nutrition layouts are retained in 1.4.2. Preserve this provenance in the README and site rather than labeling the images as newly captured 1.4.2 screens. A future refresh should capture the production app with synthetic data only.
 
 GitHub recommends 1280 × 640 for best display, accepts PNG/JPG/GIF under 1 MB and uses **Settings → General → Social preview → Edit → Upload an image**. This is an image brief, not an uploaded preview. [Official social preview requirements](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview)
 
@@ -50,7 +50,7 @@ Without a license, ordinary copyright restrictions apply; GitHub's terms still p
 
 ## Early-user launch checklist
 
-1. Approve the README, landing-page presentation and metadata. Retain published releases and the production signing identity.
+1. Approve the README, landing-page presentation and metadata. Publish only those approved materials; retain the current v1.4.2 release and production signing identity.
 2. Check the official APK and checksum links from a phone, and complete a fresh Android 8.0+ installation. For old development-signed installations, check the external portable backup **before** the manual uninstall/reinstall/restore transition. Follow the [signing/migration guide](signing.md); optional food packs need downloading again after reinstall.
 3. Once Pages is live, check narrow-screen layout, screenshot loading, keyboard navigation, download links, installation instructions and the prominent migration warning. Add that verified URL to About.
 4. Invite a small group of Android testers through channels where sharing is permitted. Ask them to log a workout, complete a set/rest, create a routine, log a food and test a backup preview. Request device/Android version and reproducible steps for problems; do not promise uniform physical-device performance.

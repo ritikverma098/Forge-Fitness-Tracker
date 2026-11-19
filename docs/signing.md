@@ -2,7 +2,7 @@
 
 **Before replacing a development-signed installation, create and check a portable backup outside Forge. Uninstalling removes the app's private data. Do not uninstall until that backup is available and verified.**
 
-Version 1.4.2 introduced a dedicated production release identity. Version 1.4.3 keeps that identity, application ID `com.forge.workout`, Room schema 4 and portable backup format 3. Production-signed 1.4.2 installations can update in place. Previously published development-signed APKs, including 1.4.1, need the one-time migration below. See the [migration test results](release-1.4.2.md).
+Version 1.4.2 uses a dedicated production release identity. It keeps application ID `com.forge.workout`, Room schema 4 and portable backup format 3. The production APK is not an in-place update for previously published development-signed APKs, including 1.4.1. Publication and the current migration test results are tracked in the [release verification report](release-1.4.2.md).
 
 ## Public certificate fingerprints
 
@@ -27,7 +27,7 @@ Modern signing rotation is technically possible in other configurations; it has 
 
 1. Finish or save pending edits. In the existing app, choose **Settings → Backup & restore → Create backup**. Save the JSON file in a user-controlled Documents/Downloads folder or external storage that will remain after uninstall. Do not use Forge's private directory or `Android/data/com.forge.workout`.
 2. Check that the backup exists and has nonzero size. Use **Restore backup** to select it and review its validation preview, date and expected record counts; then press **Cancel**. Do not choose Replace and restore merely to inspect it. Keep a separate safe copy. If validation fails or records are missing, stop and retain the installed app.
-3. Download `Forge-1.4.3.apk` from [Forge v1.4.3](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.3) to storage outside the old app. Check its complete-file SHA-256 against that release's `SHA256SUMS.txt`.
+3. Download `Forge-1.4.2.apk` from [GitHub Releases](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/latest) to storage outside the old app. Check its complete-file SHA-256 against that release's `SHA256SUMS.txt`; maintainer verification commands appear below.
 4. Only after the backup has been checked, uninstall the development-signed Forge app through Android's normal settings. This is a manual, user-approved step. Forge never uninstalls itself, clears personal data or bypasses signature checks.
 5. Install the official production-signed APK using Android's installer. Approve installation-source access if Android requests it for the browser/file manager used in this one-time step.
 6. Open Forge and choose **Settings → Backup & restore → Restore backup**. Select the verified JSON, review its counts and confirm replacement on this fresh installation.
@@ -68,13 +68,13 @@ The production APK is generated at `app/build/outputs/apk/release/app-release.ap
 Use the Android SDK Build Tools signer to check APK signatures and public certificate identity:
 
 ```sh
-apksigner verify --verbose --print-certs Forge-1.4.3.apk
+apksigner verify --verbose --print-certs Forge-1.4.2.apk
 ```
 
-The certificate SHA-256 must match the production row above. Check for application ID `com.forge.workout`, version name `1.4.3` and version code `12`. Verify the complete APK file against the independently generated release manifest:
+The certificate SHA-256 must match the production row above, and the APK must have application ID `com.forge.workout`, version name `1.4.2` and version code `11`. The complete-file checksum checks the exact downloaded bytes and must match the independently generated release manifest:
 
 ```sh
 sha256sum --check SHA256SUMS.txt
 ```
 
-On Windows, `Get-FileHash -Algorithm SHA256 -LiteralPath .\Forge-1.4.3.apk` computes the full APK checksum. The certificate fingerprint identifies the signer. The APK file checksum identifies the exact downloaded bytes. Align before signing and keep the signed APK intact. [apksigner verification](https://developer.android.com/tools/apksigner)
+On Windows, `Get-FileHash -Algorithm SHA256 -LiteralPath .\Forge-1.4.2.apk` computes the full APK checksum. A certificate fingerprint stays the same across correctly signed releases; the APK file checksum changes when the APK's bytes change. Never confuse the two. Align before signing and do not modify the signed APK afterward. [apksigner verification](https://developer.android.com/tools/apksigner)

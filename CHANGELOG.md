@@ -1,13 +1,14 @@
 # Changelog
 
-## 1.4.3 — Premium UI/UX Refresh
+## 1.4.3 — Withdrawn
+
+Google Play Protect blocked installation of the published APK during post-publication verification. Forge 1.4.3 was withdrawn while the warning is investigated. Forge 1.4.2 remains the latest stable release. [Withdrawal and verification details](docs/release-1.4.3.md)
 
 - Introduce Forge Dark across Home, workout logging, exercise library and routines, nutrition, History, Progress, and Settings. Apply the same design system to Light and System themes, including forms, dialogs, empty states and feedback.
 - Make active workout and rest timing easier to scan. Refresh set editors, completion controls, exercise categories, workout shortcuts and summaries while keeping saved records and existing logging flows.
 - Refresh the nutrition dashboard, food logging and serving forms, catalog pack management, recipes, goals, and body-weight and energy settings. Retain offline catalogs, nutritional snapshots and data-source attribution.
 - Offer an optional rest-notification prompt on the first eligible startup on Android 13 and newer. Keep notifications configurable later in Settings and keep precise-alarm special access separate. Android 8–12L use app and channel notification settings.
-- Keep `com.forge.workout`, version code 12, Room schema 4, portable backup format 3, the verified GitHub updater and the 1.4.2 production certificate. Production-signed 1.4.2 can update in place. Development-signed builds require the [one-time backup, reinstall and restore](docs/signing.md).
-- Refresh the README and GitHub Pages website with genuine app screenshots. [Release verification](docs/release-1.4.3.md)
+- Keep `com.forge.workout`, version code 12, Room schema 4, portable backup format 3, the GitHub updater and the 1.4.2 production certificate. Direct in-place QA installs from production-signed 1.4.2 preserved data. The subsequent public updater test stopped at the Play Protect block.
 
 ## 1.4.2 — 2026-11-18
 

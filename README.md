@@ -9,17 +9,28 @@ Forge is a native **Android 8.0+** app for logging gym sessions, planning routin
 - **Track meals:** calories, macros, recipes, custom foods and an offline food library, with optional Indian and international food packs.
 - **Stay in control:** no ads, analytics or cloud sync; portable local backup and restore.
 
-### [Download Forge 1.4.3 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.3/Forge-1.4.3.apk)
+### [Download Forge 1.4.2 APK](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.2/Forge-1.4.2.apk)
 
-Android 8.0 or newer · Version 1.4.3 (code 12) · [Release notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.3) · [APK checksums](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.3/SHA256SUMS.txt)
+Android 8.0 or newer · Version 1.4.2 (code 11) · [Release notes](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/tag/v1.4.2) · [APK checksums](https://github.com/ritikverma098/Forge-Fitness-Tracker/releases/download/v1.4.2/SHA256SUMS.txt)
 
-[Install on Android](#install-on-android) · [Getting started](#getting-started) · [Features](#features) · [Feedback](#feedback-and-bug-reports) · [Build from source](#build-and-install) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
+> [!IMPORTANT]
+> **Forge 1.4.2 remains the latest stable release.** Forge 1.4.3 was withdrawn after Google Play Protect blocked installation during verification. The warning is under investigation. [Withdrawal details](docs/release-1.4.3.md)
 
-**Using 1.4.1 or another development-signed build?** [Check the signing-migration steps](#install-on-android) before installing.
+[Screenshots](#screenshots) · [Getting started](#getting-started) · [Features](#features) · [Feedback](#feedback-and-bug-reports) · [Build from source](#build-and-install) · [Architecture](#architecture) · [Tests](#dependencies-and-tests)
+
+## Install on Android
+
+**Signing transition for 1.4.2:** the production release uses a new release certificate. Existing development-signed installations, including published 1.4.1, require a one-time **verified local backup → uninstall → production install → restore**. Do not uninstall until the backup is saved outside Forge and checked. Android 8 cannot use signing lineage for this transition; this APK does not retain the debug signer. Read the [migration instructions](docs/signing.md) before installing.
+
+1. Download **Forge-1.4.2.apk** from the official link above on your Android phone. The release also provides `SHA256SUMS.txt` to check the file.
+2. Open the downloaded APK. If Android asks, allow installation from the browser or file manager you used, then approve **Install** in Android's installer.
+3. Open Forge and start logging. Future compatible production-signed updates can be downloaded inside Forge through **Settings → About Forge → Check for Updates**; Android still asks you to approve installation.
+
+Only install APKs from the official repository's releases. The [signing guide](docs/signing.md) explains file checksums and certificate fingerprints; the [release verification report](docs/release-1.4.2.md) records the checks performed for this APK.
 
 ## Screenshots
 
-Genuine Forge 1.4.3 app screens captured on an Android emulator with synthetic test data. Forge Dark adds lime accents, clearer workout controls and a refreshed nutrition dashboard. Light and System themes are also available.
+Actual Forge screens captured from version 1.3.0 on an Android 17 emulator with synthetic QA data. Version 1.4.2 retains these training and nutrition layouts; these are not new 1.4.2 captures.
 
 | Home | Active workout | Nutrition |
 | --- | --- | --- |
@@ -27,26 +38,12 @@ Genuine Forge 1.4.3 app screens captured on an Android emulator with synthetic t
 | Routines | History | Progress |
 | <img src="docs/screenshots/routines.png" alt="Reusable workout routines" width="220"> | <img src="docs/screenshots/history.png" alt="Completed workout history" width="220"> | <img src="docs/screenshots/progress.png" alt="Exercise progress and training metrics" width="220"> |
 
-## Install on Android
-
-**Already using production-signed 1.4.2?** Update in place through **Settings → About Forge → Check for Updates**, then approve installation in Android. Version 1.4.3 continues to use the production certificate introduced in 1.4.2.
-
-**Using 1.4.1 or another development-signed build?** Move to production signing with a one-time **verified local backup → uninstall → production install → restore**. Save and check the backup outside Forge before uninstalling. Optional food packs may need to be downloaded or imported again. Follow the [migration instructions](docs/signing.md) before installing.
-
-1. Download **Forge-1.4.3.apk** from the official link above on your Android phone. The release also provides `SHA256SUMS.txt` to check the file.
-2. Open the downloaded APK. If Android asks, allow installation from the browser or file manager you used, then approve **Install** in Android's installer.
-3. Open Forge and start logging. Future compatible production-signed updates can be downloaded inside Forge through **Settings → About Forge → Check for Updates**; Android still asks you to approve installation.
-
-Use the official repository's Releases page to get the APK. The signing guide explains file checksums and certificate fingerprints. [Signing guide](docs/signing.md)
-
 ## Getting started
 
 1. **Log your first workout.** Choose **Start Workout**, add exercises, enter your sets and tick **Done** for each completed set. Finish the workout to review its summary.
 2. **Make it repeatable.** Open **Your routines** from Home to save a plan. Use **History** for past sessions and **Progress** to review an exercise over time.
 3. **Log a meal.** Open **Nutrition**, let the bundled food library finish its first local setup, then add a food and choose its portion. You can also create custom foods and recipes. Optional packs are available under **Nutrition → Food catalog**.
 4. **Keep a backup.** Use **Settings → Backup & restore → Create backup** and save the file outside Forge. Keep a checked backup before reinstalling or changing phones; automatic Android cloud backup and device transfer are disabled.
-
-On Android 13 and newer, Forge offers a first-time prompt for rest-timer notifications when Home is ready. You can choose **Not Now** or enable them later from Settings. Precise background timing has a separate Android special-access setting, where available.
 
 ## Privacy and offline use
 
@@ -60,7 +57,7 @@ Have a question, suggestion or reproducible problem? [Open a GitHub issue](https
 
 ## Source and data licensing
 
-Forge's source is publicly available. **No overall license for the original project code has been published.** Public availability alone does not grant general permission to reuse or redistribute it. Bundled and optional food datasets have separate terms. [Third-party notices and data licenses](THIRD_PARTY_NOTICES.md)
+The source is publicly available, but **no overall license for the original project code has been selected**. Public availability alone does not grant general permission to reuse or redistribute it. Bundled and optional food datasets have separate terms: [third-party notices and data licenses](THIRD_PARTY_NOTICES.md).
 
 ## In-app update checks
 
@@ -68,17 +65,17 @@ Forge 1.3.3 and later can check for updates. On foreground startup, Forge checks
 
 Forge compares stable version numbers numerically and accepts an uploaded APK from the same repository and release tag. The dialog shows the release notes on a safe Home screen or after an explicit check in Settings. During a workout, Settings reports the result inline. Later snoozes that version for a day. Skip This Version suppresses its prompts until a newer release. The same version prompts at most once per app session.
 
-Download & Install streams the selected APK inside Forge and shows progress, Cancel and Retry. It requires the official GitHub asset's SHA-256 digest, an exact byte count, a maximum size of 128 MiB, the correct package and newer version, and the same complete current signing-certificate set. Missing checksums or failed verification prevent installation. Only approved HTTPS GitHub/CDN redirects are followed.
+In **1.4.2**, Download & Install streams the selected APK inside Forge and shows progress, Cancel and Retry. It requires the official GitHub asset's SHA-256 digest, an exact byte count, a maximum size of 128 MiB, the correct package and newer version, and the same complete current signing-certificate set. Missing checksums or failed verification prevent installation. Only approved HTTPS GitHub/CDN redirects are followed.
 
 After verification, choose Install Update. Android 8.0+ may first require **Allow from this source** for Forge; returning from that setting does not install automatically. Android's system installer still asks for confirmation. Forge does not silently install, use a browser to download updates, or request storage access. Installation waits until the active workout and backup operations have finished. Repository and release-page links still open normally.
 
-Temporary downloads live only in Forge's private update directory. Forge removes cancelled or failed downloads and retains a verified APK after installation cancellation so you can retry or discard it. Startup removes expired pending files after 24 hours. After Android replaces the app, startup confirms the installed version before removing the pending APK and metadata. The [1.4.2 production report](docs/release-1.4.2.md) records the Android 8 and Android 17 installer and cleanup tests, including the controlled update fixture. See also the [updater design](docs/updater-design.md).
+Temporary downloads live only in Forge's private update directory. Cancelled/failed downloads are removed. A cancelled installation retains its verified APK for Retry or Discard; startup removes expired pending files after 24 hours. After Android replaces the app, startup confirms the installed version before removing the pending APK and metadata. Real production-certificate tests on Android 8/API 26 and Android 17/API 37 measured **0 files / 0 bytes** in that dedicated update directory after a genuine future-candidate installation and normal startup. The controlled future-release metadata/transport fixture is distinguished from live GitHub delivery in the verification report. See [updater design](docs/updater-design.md), the [earlier verification record](docs/updater-verification-1.4.2.md), and the [current production release report](docs/release-1.4.2.md).
 
 **Migrating from published 1.4.1:** its Download Now action opens the browser/download handler and cannot perform the certificate transition. Use it only to obtain the official APK, then follow the [verified-backup/reinstall/restore procedure](docs/signing.md). Do not repeatedly attempt an in-place installation or clear data to bypass a signature error. Once on production-signed 1.4.2, future official releases signed with the same production identity can use the built-in workflow.
 
 To prepare the next compatible release:
 
-1. Set a higher `versionCode` and the intended stable `versionName` in `app/build.gradle.kts`. Forge 1.4.3 uses code 12. Keep the application ID `com.forge.workout`.
+1. Set a higher `versionCode` and the intended stable `versionName` in `app/build.gradle.kts`. Forge 1.4.2 uses code 11; releases after it need at least 12. Keep the application ID `com.forge.workout`.
 2. Build with the private production signing configuration described in [signing instructions](docs/signing.md). Reuse the production identity established for 1.4.2, and verify its public fingerprint with `apksigner verify --verbose --print-certs`. Test a production-to-production in-place upgrade with existing data. Never sign an official release with a debug key.
 3. Publish only after verification and approval, using the matching source commit and tag `v<versionName>`. Add the changelog as the release body, attach the signed `Forge-<versionName>.apk` and checksums, and mark it as latest. Confirm the public API returns that tag, uploaded APK URL, exact asset size and a `sha256:` digest matching the APK. The built-in downloader fails closed if that API digest is missing. [GitHub latest-release API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 
@@ -86,11 +83,11 @@ Keep the production keystore and passwords in private, durable storage, with ver
 
 ## Development status
 
-Forge **1.4.3 introduces the Forge Dark refresh** across Home, workout logging, the exercise library, routines, nutrition, History, Progress and Settings. Light and System themes share the updated components. The release preserves application ID `com.forge.workout`, Room schema 4, portable backup format 3 and the 1.4.2 production signing identity. The [GitHub Actions workflow](docs/ci.md) runs host tests, importer tests, lint and debug/unsigned release builds.
+Forge **1.4.2 adds in-app update delivery and production signing** to the **1.4.1** reliability baseline. It preserves the application ID, Room schema 4 and portable backup format 3, and deliberately separates production signing from development signing. Legacy installations require the documented one-time migration. Automated checks cover database migrations, calculations, editor state, navigation, backups and update delivery. The [GitHub Actions workflow](docs/ci.md) runs host tests, importer tests, lint and debug/unsigned release builds. Local verification passed; publication requires the matching hosted workflow to pass. The exact hosted run and final artifact checks are recorded in the GitHub release notes.
 
 Tentative follow-up work includes physical-device checks for scrolling, Back transitions and rest alerts, and wider regional food coverage where suitable redistribution rights and source data are available.
 
-### Reliability fixes introduced in 1.4.1
+### Current stability update
 
 - Recipe backups must match their frozen ingredient totals and serving conversions before restore can modify data.
 - Saved workout drafts cannot replay across a completed backup restore after Android saved-task process recreation. Normal pending-edit recovery is preserved.
@@ -286,7 +283,7 @@ See [Android Gradle Plugin compatibility](https://developer.android.com/build/re
 
 Unit tests cover calculations, personal records, exercise/set validation, queued workout mutations, backup validation and restore state. Robolectric 4.17 runs Room transactions, migrations, real Compose navigation/recomposition checks and Android alarm/notification behavior on the host, with caches isolated under the project's ignored `.gradle/` directory. Instrumented tests cover Room operations and application navigation. UI tests use an isolated in-memory database and separate test preferences so they never clear user training data.
 
-See the emulator, build and artifact checks for this release. The 1.4.2 report documents the one-time signing migration and earlier updater installer and cleanup tests. [1.4.3 verification report](docs/release-1.4.3.md) · [1.4.2 verification report](docs/release-1.4.2.md)
+Verification for 1.4.2 passed **739 unit/Robolectric tests with zero failures, errors or skips**, **54 Android 17 instrumentation tests**, **21 food-importer tests**, lint with zero issues, and debug/optimized builds. Update regressions cover transport/checksum failures, APK identity, signature-transition guidance, storage errors, cancellation, recovery, session ownership, private cleanup and retry-dialog visibility. Production-signed migration and installer/cleanup evidence are recorded separately in the [current production verification report](docs/release-1.4.2.md). Controlled future-release fixtures are distinguished from live public GitHub downloads.
 
 The stability update was verified on 28 October 2026 with **463 unit/Robolectric tests passing with no failures, errors or skips**, debug and instrumentation APK builds, and zero lint findings. Android 17/API 37 emulator checks also passed for workout editing/rest controls in both themes, predictive Back commit/cancel, routine/custom-exercise flows, immediate navigation after restore, catalog progress with blocked reads, and 14 Room/repository cases. Instrumentation explicitly uses Espresso 3.7.0 for Android 17 compatibility.
 
